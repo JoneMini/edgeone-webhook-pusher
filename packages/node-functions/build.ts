@@ -1,8 +1,8 @@
 import * as esbuild from 'esbuild';
 import { mkdirSync, existsSync, rmSync } from 'fs';
 
-// Output directly to dist/node-functions
-const OUT_DIR = '../../dist/node-functions';
+// Output to .output/node-functions (outside dist, not deployed to EdgeOne)
+const OUT_DIR = '../../.output/node-functions';
 
 // Clean and create output directory
 if (existsSync(OUT_DIR)) {
@@ -50,6 +50,6 @@ await esbuild.build({
     js: '// EdgeOne Node Functions - Webhook Handler\n// Route: /send/{sendKey}\n',
   },
 });
-console.log(`✓ Webhook: dist/node-functions/send/[key].js -> /send/{sendKey}`);
+console.log(`✓ Webhook: .output/node-functions/send/[key].js -> /send/{sendKey}`);
 
 console.log('\nBuild complete!');

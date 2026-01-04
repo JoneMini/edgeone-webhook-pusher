@@ -7,7 +7,7 @@
     "build": "tsx build.ts",
     "build:functions": "tsx build.ts",
     "dev": "tsc --watch",
-    "clean": "rimraf dist ../../dist/node-functions",
+    "clean": "rimraf dist ../../.output/node-functions",
     "test": "vitest run",
     "test:watch": "vitest"
   },
