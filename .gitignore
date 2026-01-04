@@ -7,16 +7,19 @@ dist/
 .output/
 *.tsbuildinfo
 
-# EdgeOne Functions (built to project root)
-/edge-functions/
-/node-functions/
-
 # Nuxt
 .nuxt/
 .nitro/
 .cache/
 
-# ide
+# IDE
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*.sublime-*
 .code/
 .kiro/
 .cursor/
@@ -27,15 +30,6 @@ dist/
 .env
 .env.*
 !.env.example
-
-# IDE
-.vscode/
-!.vscode/extensions.json
-!.vscode/settings.json
-.idea/
-*.swp
-*.swo
-*.sublime-*
 
 # OS
 .DS_Store
@@ -64,6 +58,7 @@ coverage/
 
 # EdgeOne
 .edgeone/
+.tef_dist/
 
 # Lock files (only keep pnpm-lock.yaml)
 package-lock.json

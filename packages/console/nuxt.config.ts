@@ -10,13 +10,17 @@ export default defineNuxtConfig({
   // SPA mode
   ssr: false,
 
-  // Output to root .output/public
+  // Output to dist directory
   nitro: {
     output: {
-      dir: '../../.output',
-      publicDir: '../../.output/public',
+      publicDir: '../../dist',
     },
     preset: 'static',
+    compressPublicAssets: true,
+    prerender: {
+      crawlLinks: false,
+      routes: ['/'],
+    },
   },
 
   // Modules

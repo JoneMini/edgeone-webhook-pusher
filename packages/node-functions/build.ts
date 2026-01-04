@@ -1,20 +1,17 @@
 import * as esbuild from 'esbuild';
 import { mkdirSync, existsSync, rmSync } from 'fs';
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-// Node functions at project root
-const baseOutDir = `${__dirname}/../../../node-functions`;
+// Output directly to dist/node-functions
+const OUT_DIR = '../../dist/node-functions';
 
 // Clean and create output directory
-if (existsSync(baseOutDir)) {
-  rmSync(baseOutDir, { recursive: true });
+if (existsSync(OUT_DIR)) {
+  rmSync(OUT_DIR, { recursive: true });
 }
-mkdirSync(`${baseOutDir}/send`, { recursive: true });
+mkdirSync(`${OUT_DIR}/send`, { recursive: true });
 
 // Common esbuild options
-const commonOptions = {
+const commonOptions: esbuild.BuildOptions = {
   bundle: true,
   platform: 'node',
   target: 'node20',
@@ -45,15 +42,14 @@ const commonOptions = {
 console.log('Building Node Functions...');
 
 // Webhook handler: /send/{sendKey}
-// File: node-functions/send/[key].js -> matches /send/{key}
 await esbuild.build({
   ...commonOptions,
-  entryPoints: [`${__dirname}/../src/webhook.ts`],
-  outfile: `${baseOutDir}/send/[key].js`,
+  entryPoints: ['./src/webhook.ts'],
+  outfile: `${OUT_DIR}/send/[key].js`,
   banner: {
     js: '// EdgeOne Node Functions - Webhook Handler\n// Route: /send/{sendKey}\n',
   },
 });
-console.log(`✓ Webhook: node-functions/send/[key].js -> /send/{sendKey}`);
+console.log(`✓ Webhook: dist/node-functions/send/[key].js -> /send/{sendKey}`);
 
 console.log('\nBuild complete!');

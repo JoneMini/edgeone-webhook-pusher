@@ -2,7 +2,7 @@
   "name": "edgeone-webhook-pusher",
   "build": {
     "command": "pnpm build",
-    "outputDir": ".output/public"
+    "outputDir": "dist"
   },
   "devCommand": "pnpm --filter console dev",
   "kv": {

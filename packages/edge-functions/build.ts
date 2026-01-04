@@ -3,7 +3,8 @@ import { readdirSync, statSync, mkdirSync, existsSync, rmSync } from 'fs';
 import { join, relative } from 'path';
 
 const SRC_DIR = './src';
-const OUT_DIR = '../../edge-functions';
+// Output directly to dist/edge-functions
+const OUT_DIR = '../../dist/edge-functions';
 
 // Find all TS files in src directory
 function findTsFiles(dir: string): string[] {
