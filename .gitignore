@@ -76,3 +76,10 @@ yarn.lock
 *.pid
 *.seed
 *.pid.lock
+
+# Tencent Cloud EdgeOne
+.env
+.edgeone/*
+!.edgeone/project.json
+.tef_dist/*
+  
