@@ -7,7 +7,7 @@
     },
     "build:functions": {
       "dependsOn": ["@webhook-pusher/shared#build"],
-      "outputs": ["../../.output/public/edge-functions/**", "../../.output/public/node-functions/**"]
+      "outputs": ["../../dist/edge-functions/**", "../../dist/node-functions/**"]
     },
     "dev": {
       "cache": false,
