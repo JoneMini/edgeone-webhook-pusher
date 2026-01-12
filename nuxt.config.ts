@@ -12,6 +12,13 @@ export default defineNuxtConfig({
   // SPA mode
   ssr: false,
 
+  // Route rules - bypass serverless routes
+  routeRules: {
+    '/api/**': { proxy: { to: '/api/**' } },
+    '/v1/**': { proxy: { to: '/v1/**' } },
+    '/send/**': { proxy: { to: '/send/**' } },
+  },
+
   // Output configuration
   nitro: {
     output: {
@@ -23,6 +30,7 @@ export default defineNuxtConfig({
     prerender: {
       crawlLinks: false,
       routes: ['/'],
+      ignore: ['/api/**', '/v1/**', '/send/**'],
     },
   },
 

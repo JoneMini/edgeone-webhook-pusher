@@ -57,6 +57,22 @@ cd edgeone-webhook-pusher
 yarn install
 ```
 
+### 配置 KV 存储
+
+在 EdgeOne Pages 控制台创建以下 KV 命名空间，并绑定到项目：
+
+| KV 绑定名称 | 用途 | 说明 |
+|-------------|------|------|
+| `USERS_KV` | 用户数据 | 存储用户信息、SendKey 等 |
+| `CHANNELS_KV` | 渠道配置 | 存储推送渠道配置（微信等） |
+| `MESSAGES_KV` | 消息历史 | 存储推送消息记录 |
+
+**配置步骤：**
+1. 进入 EdgeOne Pages 控制台
+2. 选择项目 → 设置 → KV 存储
+3. 创建 3 个 KV 命名空间
+4. 将命名空间绑定到对应的变量名
+
 ### 本地开发
 
 ```bash
