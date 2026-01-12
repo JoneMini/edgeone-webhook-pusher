@@ -1,102 +1,134 @@
 <template>
   <div class="dashboard">
     <t-row :gutter="[24, 24]">
-      <t-col :span="12">
-        <t-card title="SendKey" :bordered="false">
-          <div class="sendkey-section">
-            <t-input
-              v-model="sendKey"
-              readonly
-              size="large"
-              placeholder="加载中..."
-            >
-              <template #suffix>
-                <t-button
-                  theme="default"
-                  variant="text"
-                  @click="copySendKey"
-                >
-                  <t-icon name="file-copy" />
-                </t-button>
-              </template>
-            </t-input>
-            <p class="tip">请妥善保管您的 SendKey，不要泄露给他人</p>
+      <!-- Stats Cards -->
+      <t-col :xs="24" :sm="8">
+        <t-card :bordered="false" class="stat-card">
+          <div class="stat-content">
+            <div class="stat-icon sendkey">
+              <Icon icon="mdi:key" />
+            </div>
+            <div class="stat-info">
+              <div class="stat-value">{{ stats.sendKeyCount }}</div>
+              <div class="stat-label">SendKey</div>
+            </div>
           </div>
+          <t-button
+            theme="primary"
+            variant="text"
+            class="stat-action"
+            @click="router.push('/sendkeys')"
+          >
+            管理 <Icon icon="mdi:arrow-right" />
+          </t-button>
         </t-card>
       </t-col>
 
-      <t-col :span="12">
-        <t-card title="快速开始" :bordered="false">
-          <div class="quick-start">
-            <p>使用以下 URL 发送消息：</p>
-            <t-input
-              :value="webhookUrl"
-              readonly
-              size="large"
-            >
-              <template #suffix>
-                <t-button
-                  theme="default"
-                  variant="text"
-                  @click="copyWebhookUrl"
-                >
-                  <t-icon name="file-copy" />
-                </t-button>
-              </template>
-            </t-input>
+      <t-col :xs="24" :sm="8">
+        <t-card :bordered="false" class="stat-card">
+          <div class="stat-content">
+            <div class="stat-icon topic">
+              <Icon icon="mdi:account-group" />
+            </div>
+            <div class="stat-info">
+              <div class="stat-value">{{ stats.topicCount }}</div>
+              <div class="stat-label">Topic</div>
+            </div>
           </div>
+          <t-button
+            theme="primary"
+            variant="text"
+            class="stat-action"
+            @click="router.push('/topics')"
+          >
+            管理 <Icon icon="mdi:arrow-right" />
+          </t-button>
         </t-card>
       </t-col>
 
+      <t-col :xs="24" :sm="8">
+        <t-card :bordered="false" class="stat-card">
+          <div class="stat-content">
+            <div class="stat-icon message">
+              <Icon icon="mdi:message-text" />
+            </div>
+            <div class="stat-info">
+              <div class="stat-value">{{ stats.messageCount }}</div>
+              <div class="stat-label">消息总数</div>
+            </div>
+          </div>
+          <t-button
+            theme="primary"
+            variant="text"
+            class="stat-action"
+            @click="router.push('/messages')"
+          >
+            查看 <Icon icon="mdi:arrow-right" />
+          </t-button>
+        </t-card>
+      </t-col>
+
+      <!-- Quick Actions -->
       <t-col :span="24">
-        <t-card title="使用说明" :bordered="false">
-          <t-tabs default-value="get">
-            <t-tab-panel value="get" label="GET 请求">
-              <pre class="code-block">{{ getExample }}</pre>
-            </t-tab-panel>
-            <t-tab-panel value="post-json" label="POST JSON">
-              <pre class="code-block">{{ postJsonExample }}</pre>
-            </t-tab-panel>
-            <t-tab-panel value="post-form" label="POST Form">
-              <pre class="code-block">{{ postFormExample }}</pre>
-            </t-tab-panel>
-          </t-tabs>
+        <t-card title="快捷操作" :bordered="false">
+          <t-space>
+            <t-button theme="primary" @click="router.push('/sendkeys?action=create')">
+              <template #icon><Icon icon="mdi:plus" /></template>
+              新建 SendKey
+            </t-button>
+            <t-button theme="default" @click="router.push('/topics?action=create')">
+              <template #icon><Icon icon="mdi:plus" /></template>
+              新建 Topic
+            </t-button>
+            <t-button theme="default" variant="outline" @click="router.push('/settings')">
+              <template #icon><Icon icon="mdi:cog" /></template>
+              渠道配置
+            </t-button>
+          </t-space>
         </t-card>
       </t-col>
 
-      <t-col :span="12">
-        <t-card title="渠道状态" :bordered="false">
-          <t-loading :loading="channelsLoading">
-            <t-list v-if="channels.length > 0">
-              <t-list-item v-for="ch in channels" :key="ch.id">
-                <t-list-item-meta
-                  :title="ch.name"
-                  :description="ch.type"
-                />
-                <template #action>
-                  <t-tag :theme="ch.enabled ? 'success' : 'default'">
-                    {{ ch.enabled ? '已启用' : '已禁用' }}
-                  </t-tag>
-                </template>
-              </t-list-item>
-            </t-list>
-            <t-empty v-else description="暂无渠道，请先添加" />
-          </t-loading>
-        </t-card>
-      </t-col>
+      <!-- Recent Messages -->
+      <t-col :span="24">
+        <t-card :bordered="false">
+          <template #header>
+            <div class="card-header">
+              <span>最近消息</span>
+              <t-button
+                theme="default"
+                variant="text"
+                @click="router.push('/messages')"
+              >
+                查看全部 <Icon icon="mdi:arrow-right" />
+              </t-button>
+            </div>
+          </template>
 
-      <t-col :span="12">
-        <t-card title="最近消息" :bordered="false">
-          <t-loading :loading="messagesLoading">
-            <t-list v-if="messages.length > 0">
-              <t-list-item v-for="msg in messages" :key="msg.id">
-                <t-list-item-meta
-                  :title="msg.title"
-                  :description="formatTime(msg.createdAt)"
-                />
-              </t-list-item>
-            </t-list>
-            <t-empty v-else description="暂无消息" />
+          <t-loading :loading="loading">
+            <t-table
+              v-if="stats.recentMessages.length > 0"
+              :data="stats.recentMessages"
+              :columns="messageColumns"
+              row-key="id"
+              hover
+              size="small"
+            >
+              <template #type="{ row }">
+                <t-tag :theme="row.type === 'single' ? 'primary' : 'warning'" variant="light" size="small">
+                  {{ row.type === 'single' ? '单发' : '群发' }}
+                </t-tag>
+              </template>
+              <template #success="{ row }">
+                <t-tag :theme="row.success ? 'success' : 'danger'" variant="light" size="small">
+                  <Icon :icon="row.success ? 'mdi:check' : 'mdi:close'" />
+                  {{ row.success ? '成功' : '失败' }}
+                </t-tag>
+              </template>
+              <template #createdAt="{ row }">
+                {{ formatTime(row.createdAt) }}
+              </template>
+            </t-table>
+            <t-empty v-else description="暂无消息记录" />
           </t-loading>
         </t-card>
       </t-col>
@@ -105,69 +137,36 @@
 </template>
 
 <script setup lang="ts">
-import { MessagePlugin } from 'tdesign-vue-next';
+import type { StatsData } from '~/composables/useApi';
 
 const api = useApi();
+const router = useRouter();
 
-const sendKey = ref('');
-const channels = ref<any[]>([]);
-const messages = ref<any[]>([]);
-const channelsLoading = ref(true);
-const messagesLoading = ref(true);
-
-const webhookUrl = computed(() => {
-  const base = window.location.origin;
-  return sendKey.value ? `${base}/send/${sendKey.value}` : '加载中...';
+const loading = ref(true);
+const stats = ref<StatsData>({
+  sendKeyCount: 0,
+  topicCount: 0,
+  messageCount: 0,
+  recentMessages: [],
 });
 
-const getExample = computed(() => {
-  return `curl "${webhookUrl.value}?title=测试消息&desp=这是消息内容"`;
-});
-
-const postJsonExample = computed(() => {
-  return `curl -X POST "${webhookUrl.value}" \\
-  -H "Content-Type: application/json" \\
-  -d '{"title": "测试消息", "desp": "这是消息内容"}'`;
-});
-
-const postFormExample = computed(() => {
-  return `curl -X POST "${webhookUrl.value}" \\
-  -d "title=测试消息&desp=这是消息内容"`;
-});
+const messageColumns = [
+  { colKey: 'title', title: '标题', ellipsis: true },
+  { colKey: 'type', title: '类型', width: 80, cell: 'type' },
+  { colKey: 'success', title: '状态', width: 80, cell: 'success' },
+  { colKey: 'createdAt', title: '时间', width: 160, cell: 'createdAt' },
+];
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleString('zh-CN');
 }
 
-async function copySendKey() {
-  await navigator.clipboard.writeText(sendKey.value);
-  MessagePlugin.success('已复制 SendKey');
-}
-
-async function copyWebhookUrl() {
-  await navigator.clipboard.writeText(webhookUrl.value);
-  MessagePlugin.success('已复制 Webhook URL');
-}
-
 onMounted(async () => {
-  // Load user info
-  const userRes = await api.getUser();
-  if (userRes.code === 0 && userRes.data) {
-    sendKey.value = userRes.data.sendKey;
-  }
-
-  // Load channels
-  const chRes = await api.getChannels();
-  channelsLoading.value = false;
-  if (chRes.code === 0 && chRes.data) {
-    channels.value = chRes.data;
-  }
-
-  // Load recent messages
-  const msgRes = await api.getMessages({ limit: 5 });
-  messagesLoading.value = false;
-  if (msgRes.code === 0 && msgRes.data) {
-    messages.value = msgRes.data.items;
+  const res = await api.getStats();
+  loading.value = false;
+  
+  if (res.code === 0 && res.data) {
+    stats.value = res.data;
   }
 });
 </script>
@@ -177,25 +176,66 @@ onMounted(async () => {
   max-width: 1200px;
 }
 
-.sendkey-section .tip {
-  margin-top: 8px;
-  color: var(--td-text-color-secondary);
-  font-size: 12px;
+.stat-card {
+  position: relative;
 }
 
-.quick-start p {
-  margin: 0 0 12px;
-  color: var(--td-text-color-secondary);
+.stat-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
-.code-block {
-  background: var(--td-bg-color-secondarycontainer);
-  padding: 16px;
-  border-radius: 6px;
-  overflow-x: auto;
-  font-family: monospace;
-  font-size: 13px;
-  line-height: 1.6;
-  margin: 12px 0 0;
+.stat-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+}
+
+.stat-icon.sendkey {
+  background: rgba(0, 82, 217, 0.1);
+  color: #0052d9;
+}
+
+.stat-icon.topic {
+  background: rgba(237, 123, 47, 0.1);
+  color: #ed7b2f;
+}
+
+.stat-icon.message {
+  background: rgba(0, 168, 112, 0.1);
+  color: #00a870;
+}
+
+.stat-info {
+  flex: 1;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.stat-label {
+  color: var(--td-text-color-secondary);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.stat-action {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 </style>

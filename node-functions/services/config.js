@@ -36,6 +36,7 @@ class ConfigService {
         appId: '',
         appSecret: '',
         templateId: '',
+        msgToken: '',
       },
     };
   }
@@ -137,6 +138,7 @@ class ConfigService {
             appId: config.wechat.appId,
             appSecret: config.wechat.appSecret ? '***' : '',
             templateId: config.wechat.templateId,
+            msgToken: config.wechat.msgToken || '',
           }
         : undefined,
     };

@@ -61,6 +61,14 @@ export default defineNuxtConfig({
   // Modules
   modules: ['@pinia/nuxt'],
 
+  // Router middleware
+  router: {
+    options: {
+      linkActiveClass: 'active',
+      linkExactActiveClass: 'exact-active',
+    },
+  },
+
   // TDesign auto-import
   vite: {
     plugins: [

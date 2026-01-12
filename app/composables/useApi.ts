@@ -1,124 +1,321 @@
-// API composable for backend calls
-const API_BASE = '/api';
+/**
+ * API Composable
+ * Feature: frontend-admin-ui
+ * 
+ * Unified API request handling with authentication,
+ * error handling, and 401 redirect.
+ */
+import { useAuthStore } from '~/stores/auth';
 
+const API_BASE = '/v1';
+
+// Response types
 interface ApiResponse<T = unknown> {
   code: number;
   message: string;
   data?: T;
 }
 
-interface Channel {
-  id: string;
-  type: string;
-  name: string;
-  enabled: boolean;
-  credentials: Record<string, string>;
+// Data types
+export interface StatsData {
+  sendKeyCount: number;
+  topicCount: number;
+  messageCount: number;
+  recentMessages: {
+    id: string;
+    title: string;
+    type: 'single' | 'topic';
+    success: boolean;
+    createdAt: string;
+  }[];
+}
+
+export interface AppConfig {
+  wechat: {
+    appId: string;
+    appSecret: string;
+    templateId: string;
+    msgToken?: string;
+  };
+  rateLimit: {
+    perMinute: number;
+  };
+  retention: {
+    days: number;
+  };
   createdAt: string;
   updatedAt: string;
 }
 
-interface Message {
+export interface OpenIdData {
   id: string;
-  title: string;
-  desp?: string;
+  openId: string;
+  name?: string;
+  source: string;
   createdAt: string;
-  deliveries: Array<{
-    channelId: string;
-    channelName: string;
-    status: 'pending' | 'success' | 'failed';
-    error?: string;
-    sentAt?: string;
-  }>;
+  updatedAt: string;
 }
 
-interface User {
-  sendKey: string;
+export interface SendKeyData {
+  id: string;
+  key: string;
+  name: string;
+  openIdRef?: string;
+  openId?: OpenIdData;
+  bindUrl: string;
   createdAt: string;
+  updatedAt: string;
+}
+
+export interface TopicData {
+  id: string;
+  key: string;
+  name: string;
+  subscriberCount: number;
+  subscriberRefs: string[];
+  subscribers?: OpenIdData[];
+  subscribeUrl: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MessageData {
+  id: string;
+  type: 'single' | 'topic';
+  keyId: string;
+  keyName?: string;
+  title: string;
+  content?: string;
+  results: {
+    openId: string;
+    openIdName?: string;
+    success: boolean;
+    error?: string;
+    msgId?: string;
+  }[];
+  createdAt: string;
+}
+
+export interface ChannelTypeInfo {
+  type: string;
+  name: string;
+  description: string;
+  configSchema: Record<string, {
+    type: 'string' | 'number' | 'boolean';
+    label: string;
+    required: boolean;
+    sensitive?: boolean;
+    description?: string;
+  }>;
+  requiredFields: string[];
 }
 
 export function useApi() {
-  const token = useCookie('auth_token');
+  const auth = useAuthStore();
+  const router = useRouter();
 
-  const headers = computed(() => ({
-    'Content-Type': 'application/json',
-    ...(token.value ? { Authorization: `Bearer ${token.value}` } : {}),
-  }));
-
-  // Generic request helper
+  /**
+   * Generic request helper with auth and error handling
+   */
   async function request<T>(
     method: string,
     path: string,
-    body?: unknown
+    body?: unknown,
+    requireAuth = true
   ): Promise<ApiResponse<T>> {
-    const res = await fetch(`${API_BASE}${path}`, {
-      method,
-      headers: headers.value,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    return res.json();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (requireAuth) {
+      Object.assign(headers, auth.getAuthHeader());
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}${path}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+
+      // Handle 401 - redirect to login
+      if (res.status === 401) {
+        auth.logout();
+        router.push('/login');
+        return { code: 401, message: '未授权，请重新登录' };
+      }
+
+      const data = await res.json();
+      return data;
+    } catch (error) {
+      return { 
+        code: -1, 
+        message: error instanceof Error ? error.message : '网络请求失败' 
+      };
+    }
   }
 
-  // User APIs
-  async function getUser(): Promise<ApiResponse<User>> {
-    return request('GET', '/user');
+  // ============ Init APIs ============
+  
+  async function getInitStatus(): Promise<ApiResponse<{ initialized: boolean }>> {
+    return request('GET', '/init/status', undefined, false);
   }
 
-  async function regenerateSendKey(): Promise<ApiResponse<User>> {
-    return request('POST', '/user/regenerate-key');
+  async function doInit(): Promise<ApiResponse<{ adminToken: string }>> {
+    return request('POST', '/init', undefined, false);
   }
 
-  // Channel APIs
-  async function getChannels(): Promise<ApiResponse<Channel[]>> {
-    return request('GET', '/channels');
+  async function validateToken(token: string): Promise<ApiResponse<{ valid: boolean }>> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    };
+    
+    try {
+      const res = await fetch(`${API_BASE}/auth/validate`, {
+        method: 'POST',
+        headers,
+      });
+      return res.json();
+    } catch {
+      return { code: -1, message: '验证失败' };
+    }
   }
 
-  async function getChannel(id: string): Promise<ApiResponse<Channel>> {
-    return request('GET', `/channels/${id}`);
+  // ============ Stats APIs ============
+
+  async function getStats(): Promise<ApiResponse<StatsData>> {
+    return request('GET', '/stats');
   }
 
-  async function createChannel(
-    data: Omit<Channel, 'id' | 'createdAt' | 'updatedAt'>
-  ): Promise<ApiResponse<Channel>> {
-    return request('POST', '/channels', data);
+  // ============ Config APIs ============
+
+  async function getConfig(): Promise<ApiResponse<AppConfig>> {
+    return request('GET', '/config');
   }
 
-  async function updateChannel(
-    id: string,
-    data: Partial<Channel>
-  ): Promise<ApiResponse<Channel>> {
-    return request('PUT', `/channels/${id}`, data);
+  async function updateConfig(data: Partial<AppConfig>): Promise<ApiResponse<AppConfig>> {
+    return request('PUT', '/config', data);
   }
 
-  async function deleteChannel(id: string): Promise<ApiResponse<void>> {
-    return request('DELETE', `/channels/${id}`);
+  // ============ SendKey APIs ============
+
+  async function getSendKeys(): Promise<ApiResponse<SendKeyData[]>> {
+    return request('GET', '/sendkeys');
   }
 
-  // Message APIs
+  async function getSendKey(id: string): Promise<ApiResponse<SendKeyData>> {
+    return request('GET', `/sendkeys/${id}`);
+  }
+
+  async function createSendKey(data: { name: string }): Promise<ApiResponse<SendKeyData>> {
+    return request('POST', '/sendkeys', data);
+  }
+
+  async function updateSendKey(id: string, data: { name?: string; openIdRef?: string | null }): Promise<ApiResponse<SendKeyData>> {
+    return request('PUT', `/sendkeys/${id}`, data);
+  }
+
+  async function deleteSendKey(id: string): Promise<ApiResponse<void>> {
+    return request('DELETE', `/sendkeys/${id}`);
+  }
+
+  async function unbindSendKey(id: string): Promise<ApiResponse<SendKeyData>> {
+    return request('POST', `/sendkeys/${id}/unbind`);
+  }
+
+  // ============ Topic APIs ============
+
+  async function getTopics(): Promise<ApiResponse<TopicData[]>> {
+    return request('GET', '/topics');
+  }
+
+  async function getTopic(id: string): Promise<ApiResponse<TopicData>> {
+    return request('GET', `/topics/${id}`);
+  }
+
+  async function createTopic(data: { name: string }): Promise<ApiResponse<TopicData>> {
+    return request('POST', '/topics', data);
+  }
+
+  async function updateTopic(id: string, data: { name?: string }): Promise<ApiResponse<TopicData>> {
+    return request('PUT', `/topics/${id}`, data);
+  }
+
+  async function deleteTopic(id: string): Promise<ApiResponse<void>> {
+    return request('DELETE', `/topics/${id}`);
+  }
+
+  async function unsubscribeTopic(topicId: string, openIdRef: string): Promise<ApiResponse<void>> {
+    return request('DELETE', `/topics/${topicId}/subscribe/${openIdRef}`);
+  }
+
+  // ============ OpenID APIs ============
+
+  async function getOpenIds(): Promise<ApiResponse<OpenIdData[]>> {
+    return request('GET', '/openids');
+  }
+
+  async function deleteOpenId(id: string): Promise<ApiResponse<void>> {
+    return request('DELETE', `/openids/${id}`);
+  }
+
+  // ============ Message APIs ============
+
   async function getMessages(params?: {
     page?: number;
-    limit?: number;
-  }): Promise<ApiResponse<{ items: Message[]; total: number }>> {
+    pageSize?: number;
+    type?: 'single' | 'topic';
+  }): Promise<ApiResponse<{ messages: MessageData[]; total: number }>> {
     const query = new URLSearchParams();
     if (params?.page) query.set('page', String(params.page));
-    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.pageSize) query.set('pageSize', String(params.pageSize));
+    if (params?.type) query.set('type', params.type);
     const queryStr = query.toString();
     return request('GET', `/messages${queryStr ? `?${queryStr}` : ''}`);
   }
 
-  async function getMessage(id: string): Promise<ApiResponse<Message>> {
+  async function getMessage(id: string): Promise<ApiResponse<MessageData>> {
     return request('GET', `/messages/${id}`);
   }
 
+  // ============ Channel Type APIs ============
+
+  async function getChannelTypes(): Promise<ApiResponse<ChannelTypeInfo[]>> {
+    return request('GET', '/channels/types', undefined, false);
+  }
+
   return {
-    token,
-    getUser,
-    regenerateSendKey,
-    getChannels,
-    getChannel,
-    createChannel,
-    updateChannel,
-    deleteChannel,
+    // Init
+    getInitStatus,
+    doInit,
+    validateToken,
+    // Stats
+    getStats,
+    // Config
+    getConfig,
+    updateConfig,
+    // SendKeys
+    getSendKeys,
+    getSendKey,
+    createSendKey,
+    updateSendKey,
+    deleteSendKey,
+    unbindSendKey,
+    // Topics
+    getTopics,
+    getTopic,
+    createTopic,
+    updateTopic,
+    deleteTopic,
+    unsubscribeTopic,
+    // OpenIDs
+    getOpenIds,
+    deleteOpenId,
+    // Messages
     getMessages,
     getMessage,
+    // Channel Types
+    getChannelTypes,
   };
 }

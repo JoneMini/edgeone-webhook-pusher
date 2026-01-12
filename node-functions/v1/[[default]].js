@@ -17,6 +17,10 @@ import { onRequest as openidsHandler } from '../routes/openids.js';
 import { onRequest as sendkeysHandler } from '../routes/sendkeys.js';
 import { onRequest as topicsHandler } from '../routes/topics.js';
 import { onRequest as messagesHandler } from '../routes/messages.js';
+import { registerStatsRoutes } from '../routes/stats.js';
+import { registerBindRoutes } from '../routes/bind.js';
+import { registerSubscribeRoutes } from '../routes/subscribe.js';
+import { registerWeChatMsgRoutes } from '../routes/wechat-msg.js';
 
 // Create Koa application
 const app = new Koa();
@@ -140,6 +144,18 @@ router.get('/topics/:id/subscribers', wrapHandler(topicsHandler));
 // Message routes (auth required - handled by route)
 router.get('/messages', wrapHandler(messagesHandler));
 router.get('/messages/:id', wrapHandler(messagesHandler));
+
+// Register stats routes
+registerStatsRoutes(router);
+
+// Register bind routes (no auth - public OAuth flow)
+registerBindRoutes(router);
+
+// Register subscribe routes (no auth - public OAuth flow)
+registerSubscribeRoutes(router);
+
+// Register WeChat message routes (no auth - public callback)
+registerWeChatMsgRoutes(router);
 
 // Use router middleware
 app.use(router.routes());
