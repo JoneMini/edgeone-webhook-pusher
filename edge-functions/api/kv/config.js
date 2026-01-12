@@ -1,9 +1,9 @@
-// Edge Function: Channels KV Operations
-// Path: /api/kv/channels
-// KV Binding: CHANNELS_KV (configured in EdgeOne Pages)
+// Edge Function: Config KV Operations
+// Path: /api/kv/config
+// KV Binding: CONFIG_KV (configured in EdgeOne Pages)
 
 /**
- * Handle KV operations for channels
+ * Handle KV operations for application config
  * @param {Object} context - EdgeOne EventContext
  * @param {Request} context.request - Client request object
  * @param {Object} context.params - Dynamic routing parameters
@@ -29,7 +29,7 @@ export async function onRequest(context) {
         if (!key) {
           return jsonResponse(400, { success: false, error: 'Missing key parameter' });
         }
-        const data = await CHANNELS_KV.get(key, 'json');
+        const data = await CONFIG_KV.get(key, 'json');
         return jsonResponse(200, { success: true, data });
       }
 
@@ -41,7 +41,7 @@ export async function onRequest(context) {
         if (!body.key) {
           return jsonResponse(400, { success: false, error: 'Missing key in body' });
         }
-        await CHANNELS_KV.put(
+        await CONFIG_KV.put(
           body.key,
           JSON.stringify(body.value),
           body.ttl ? { expirationTtl: body.ttl } : undefined
@@ -54,7 +54,7 @@ export async function onRequest(context) {
         if (!key) {
           return jsonResponse(400, { success: false, error: 'Missing key parameter' });
         }
-        await CHANNELS_KV.delete(key);
+        await CONFIG_KV.delete(key);
         return jsonResponse(200, { success: true });
       }
 
@@ -62,7 +62,7 @@ export async function onRequest(context) {
         const prefix = url.searchParams.get('prefix') || '';
         const limit = parseInt(url.searchParams.get('limit') || '256', 10);
         const cursor = url.searchParams.get('cursor') || undefined;
-        const result = await CHANNELS_KV.list({ prefix, limit, cursor });
+        const result = await CONFIG_KV.list({ prefix, limit, cursor });
         return jsonResponse(200, {
           success: true,
           keys: result.keys.map((k) => k.name || k.key),

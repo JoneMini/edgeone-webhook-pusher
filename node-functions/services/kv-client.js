@@ -8,7 +8,7 @@ const KV_BASE_URL = process.env.KV_BASE_URL || '';
 
 /**
  * Create a KV client for a specific namespace
- * @param {string} namespace - KV namespace (users, channels, messages)
+ * @param {string} namespace - KV namespace (config, sendkeys, topics, openids, messages)
  * @returns {Object}
  */
 function createKVClient(namespace) {
@@ -33,7 +33,7 @@ function createKVClient(namespace) {
      * Put value by key
      * @param {string} key
      * @param {any} value
-     * @param {number} [ttl]
+     * @param {number} [ttl] - Time to live in seconds
      * @returns {Promise<void>}
      */
     async put(key, value, ttl) {
@@ -65,25 +65,55 @@ function createKVClient(namespace) {
      * List keys with prefix
      * @param {string} [prefix]
      * @param {number} [limit]
-     * @returns {Promise<string[]>}
+     * @param {string} [cursor]
+     * @returns {Promise<{ keys: string[], complete: boolean, cursor?: string }>}
      */
-    async list(prefix = '', limit = 256) {
+    async list(prefix = '', limit = 256, cursor) {
       const params = new URLSearchParams({
         action: 'list',
         prefix,
         limit: String(limit),
       });
+      if (cursor) {
+        params.set('cursor', cursor);
+      }
       const res = await fetch(`${baseUrl}?${params}`);
       const data = await res.json();
       if (!data.success) {
         throw new Error(data.error || 'KV list failed');
       }
-      return data.keys || [];
+      return {
+        keys: data.keys || [],
+        complete: data.complete ?? true,
+        cursor: data.cursor,
+      };
+    },
+
+    /**
+     * List all keys with prefix (handles pagination)
+     * @param {string} [prefix]
+     * @returns {Promise<string[]>}
+     */
+    async listAll(prefix = '') {
+      const allKeys = [];
+      let cursor;
+      let complete = false;
+
+      while (!complete) {
+        const result = await this.list(prefix, 256, cursor);
+        allKeys.push(...result.keys);
+        complete = result.complete;
+        cursor = result.cursor;
+      }
+
+      return allKeys;
     },
   };
 }
 
 // Export KV clients for each namespace
-export const usersKV = createKVClient('users');
-export const channelsKV = createKVClient('channels');
+export const configKV = createKVClient('config');
+export const sendkeysKV = createKVClient('sendkeys');
+export const topicsKV = createKVClient('topics');
+export const openidsKV = createKVClient('openids');
 export const messagesKV = createKVClient('messages');

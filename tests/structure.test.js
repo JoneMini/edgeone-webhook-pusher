@@ -63,12 +63,20 @@ describe('Project Structure', () => {
       expect(existsSync(edgeFunctionsDir)).toBe(true);
     });
 
-    it('should have api/kv/users.js', () => {
-      expect(existsSync(join(edgeFunctionsDir, 'api', 'kv', 'users.js'))).toBe(true);
+    it('should have api/kv/config.js', () => {
+      expect(existsSync(join(edgeFunctionsDir, 'api', 'kv', 'config.js'))).toBe(true);
     });
 
-    it('should have api/kv/channels.js', () => {
-      expect(existsSync(join(edgeFunctionsDir, 'api', 'kv', 'channels.js'))).toBe(true);
+    it('should have api/kv/sendkeys.js', () => {
+      expect(existsSync(join(edgeFunctionsDir, 'api', 'kv', 'sendkeys.js'))).toBe(true);
+    });
+
+    it('should have api/kv/topics.js', () => {
+      expect(existsSync(join(edgeFunctionsDir, 'api', 'kv', 'topics.js'))).toBe(true);
+    });
+
+    it('should have api/kv/openids.js', () => {
+      expect(existsSync(join(edgeFunctionsDir, 'api', 'kv', 'openids.js'))).toBe(true);
     });
 
     it('should have api/kv/messages.js', () => {

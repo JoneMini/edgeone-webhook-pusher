@@ -1,95 +1,114 @@
-import { generateSendKey, generateId, now } from '../shared/utils.js';
-import { usersKV } from './kv-client.js';
+import { configService } from './config.js';
+import { generateAdminToken, now, isValidAdminToken } from '../shared/utils.js';
+import { DefaultConfig } from '../shared/types.js';
 
+/**
+ * AuthService - Manages initialization and admin token validation
+ */
 class AuthService {
   /**
-   * Validate SendKey and return user data
-   * @param {string} sendKey
-   * @returns {Promise<Object|null>}
+   * Check if the application is initialized
+   * @returns {Promise<boolean>}
    */
-  async validateSendKey(sendKey) {
-    // Look up userId by SendKey index
-    const userId = await usersKV.get(`sk_${sendKey}`);
-    if (!userId) return null;
-
-    // Get user data
-    const user = await usersKV.get(userId);
-    if (!user || user.sendKey !== sendKey) return null;
-
-    return user;
+  async isInitialized() {
+    const config = await configService.getConfig();
+    return config !== null && !!config.adminToken;
   }
 
   /**
-   * Get user by ID
-   * @param {string} userId
-   * @returns {Promise<Object|null>}
+   * Initialize the application and generate admin token
+   * @param {Object} [wechatConfig] - Optional WeChat configuration
+   * @returns {Promise<{ adminToken: string, config: import('../shared/types.js').AppConfig }>}
    */
-  async getUserById(userId) {
-    return usersKV.get(userId);
-  }
+  async initialize(wechatConfig) {
+    // Check if already initialized
+    const isInit = await this.isInitialized();
+    if (isInit) {
+      throw new Error('Application is already initialized');
+    }
 
-  /**
-   * Create a new user with SendKey
-   * @returns {Promise<Object>}
-   */
-  async createUser() {
-    const id = generateId();
-    const sendKey = generateSendKey();
+    // Generate admin token
+    const adminToken = generateAdminToken();
     const timestamp = now();
 
-    const user = {
-      id,
-      sendKey,
-      createdAt: timestamp,
-      rateLimit: {
-        count: 0,
-        resetAt: new Date(Date.now() + 60000).toISOString(),
+    // Create initial config
+    const config = {
+      adminToken,
+      wechat: wechatConfig || {
+        appId: '',
+        appSecret: '',
+        templateId: '',
       },
+      rateLimit: {
+        perMinute: DefaultConfig.rateLimit.perMinute,
+      },
+      retention: {
+        days: DefaultConfig.retention.days,
+      },
+      createdAt: timestamp,
+      updatedAt: timestamp,
     };
 
-    // Save user data
-    await usersKV.put(id, user);
-    // Create SendKey index
-    await usersKV.put(`sk_${sendKey}`, id);
+    // Save config
+    await configService.saveConfig(config);
 
-    return user;
+    return { adminToken, config };
   }
 
   /**
-   * Regenerate SendKey for user
-   * @param {string} userId
-   * @returns {Promise<string|null>}
+   * Validate admin token
+   * @param {string} token
+   * @returns {Promise<boolean>}
    */
-  async regenerateSendKey(userId) {
-    const user = await usersKV.get(userId);
-    if (!user) return null;
+  async validateAdminToken(token) {
+    if (!token || !isValidAdminToken(token)) {
+      return false;
+    }
 
-    const oldSendKey = user.sendKey;
-    const newSendKey = generateSendKey();
+    const config = await configService.getConfig();
+    if (!config || !config.adminToken) {
+      return false;
+    }
 
-    // Update user with new SendKey
-    user.sendKey = newSendKey;
-    await usersKV.put(userId, user);
-
-    // Delete old index, create new one
-    await usersKV.delete(`sk_${oldSendKey}`);
-    await usersKV.put(`sk_${newSendKey}`, userId);
-
-    return newSendKey;
+    return config.adminToken === token;
   }
 
   /**
-   * Update rate limit for user
-   * @param {string} userId
-   * @param {{ count: number, resetAt: string }} rateLimit
-   * @returns {Promise<void>}
+   * Extract admin token from request headers
+   * @param {Object} headers - Request headers (can be Headers object or plain object)
+   * @returns {string | null}
    */
-  async updateRateLimit(userId, rateLimit) {
-    const user = await usersKV.get(userId);
-    if (!user) return;
+  extractToken(headers) {
+    // Support both Headers object and plain object
+    const authHeader = headers.get
+      ? headers.get('authorization')
+      : headers['authorization'] || headers['Authorization'];
 
-    user.rateLimit = rateLimit;
-    await usersKV.put(userId, user);
+    if (!authHeader) return null;
+
+    // Support "Bearer <token>" format
+    if (authHeader.startsWith('Bearer ')) {
+      return authHeader.slice(7);
+    }
+
+    // Support direct token
+    return authHeader;
+  }
+
+  /**
+   * Get initialization status for API response
+   * @returns {Promise<{ initialized: boolean, hasWeChatConfig: boolean }>}
+   */
+  async getStatus() {
+    const config = await configService.getConfig();
+    const initialized = config !== null && !!config.adminToken;
+    const hasWeChatConfig =
+      initialized && !!config.wechat?.appId && !!config.wechat?.appSecret && !!config.wechat?.templateId;
+
+    return {
+      initialized,
+      hasWeChatConfig,
+    };
   }
 }
 

@@ -193,32 +193,32 @@ describe('sanitizeInput', () => {
 describe('checkRateLimit', () => {
   it('should allow requests under limit', () => {
     const rateLimit = {
-      count: 30,
+      count: 3,
       resetAt: new Date(Date.now() + 30000).toISOString(),
     };
-    const result = checkRateLimit(rateLimit);
+    const result = checkRateLimit(rateLimit, 5);
     expect(result.allowed).toBe(true);
-    expect(result.remaining).toBe(29);
+    expect(result.remaining).toBe(1);
   });
 
   it('should deny requests at limit', () => {
     const rateLimit = {
-      count: 60,
+      count: 5,
       resetAt: new Date(Date.now() + 30000).toISOString(),
     };
-    const result = checkRateLimit(rateLimit);
+    const result = checkRateLimit(rateLimit, 5);
     expect(result.allowed).toBe(false);
     expect(result.remaining).toBe(0);
   });
 
   it('should reset when window expires', () => {
     const rateLimit = {
-      count: 60,
+      count: 5,
       resetAt: new Date(Date.now() - 1000).toISOString(),
     };
-    const result = checkRateLimit(rateLimit);
+    const result = checkRateLimit(rateLimit, 5);
     expect(result.allowed).toBe(true);
-    expect(result.remaining).toBe(59);
+    expect(result.remaining).toBe(4);
   });
 
   it('should respect custom limit', () => {
