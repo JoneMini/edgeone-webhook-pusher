@@ -6,7 +6,7 @@
  * and user follow status checking.
  */
 
-import { configKV } from './kv-client.js';
+import { configKV } from '../shared/kv-client.js';
 import { configService } from './config.js';
 
 // Access token cache key and TTL (2 hours, token valid for ~2h)
