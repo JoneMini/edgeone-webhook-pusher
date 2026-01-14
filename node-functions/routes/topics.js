@@ -81,10 +81,7 @@ async function handleList(context) {
     const topics = await topicService.list();
     // Mask keys in response
     const maskedTopics = topics.map((t) => topicService.maskTopicKey(t));
-    return jsonResponse(200, {
-      success: true,
-      data: maskedTopics,
-    });
+    return jsonResponse(200, successResponse(maskedTopics));
   } catch (error) {
     console.error('List topics error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
@@ -114,11 +111,7 @@ async function handleCreate(context) {
     const data = await topicService.create(name);
 
     // Return full key on creation (only time it's shown)
-    return jsonResponse(201, {
-      success: true,
-      data,
-      message: 'Topic created. Please save the key value securely - it will be masked in future responses.',
-    });
+    return jsonResponse(201, successResponse(data, 'Topic created. Please save the key value securely - it will be masked in future responses.'));
   } catch (error) {
     console.error('Create topic error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
@@ -137,10 +130,7 @@ async function handleGet(context, id) {
 
     // Mask key in response
     const maskedData = topicService.maskTopicKey(data);
-    return jsonResponse(200, {
-      success: true,
-      data: maskedData,
-    });
+    return jsonResponse(200, successResponse(maskedData));
   } catch (error) {
     console.error('Get topic error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
@@ -170,10 +160,7 @@ async function handleUpdate(context, id) {
 
     // Mask key in response
     const maskedData = topicService.maskTopicKey(data);
-    return jsonResponse(200, {
-      success: true,
-      data: maskedData,
-    });
+    return jsonResponse(200, successResponse(maskedData));
   } catch (error) {
     console.error('Update topic error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
@@ -190,10 +177,7 @@ async function handleDelete(context, id) {
       return errorResponse(ErrorCodes.KEY_NOT_FOUND, 'Topic not found');
     }
 
-    return jsonResponse(200, {
-      success: true,
-      message: 'Topic deleted',
-    });
+    return jsonResponse(200, successResponse(null, 'Topic deleted'));
   } catch (error) {
     console.error('Delete topic error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
@@ -234,10 +218,7 @@ async function handleSubscribe(context, id) {
 
     await topicService.subscribe(id, openIdRef);
 
-    return jsonResponse(200, {
-      success: true,
-      message: 'Subscriber added',
-    });
+    return jsonResponse(200, successResponse(null, 'Subscriber added'));
   } catch (error) {
     console.error('Subscribe error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
@@ -257,10 +238,7 @@ async function handleUnsubscribe(context, id, openIdRef) {
 
     await topicService.unsubscribe(id, openIdRef);
 
-    return jsonResponse(200, {
-      success: true,
-      message: 'Subscriber removed',
-    });
+    return jsonResponse(200, successResponse(null, 'Subscriber removed'));
   } catch (error) {
     console.error('Unsubscribe error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
@@ -280,10 +258,7 @@ async function handleGetSubscribers(context, id) {
 
     const subscribers = await topicService.getSubscribers(id);
 
-    return jsonResponse(200, {
-      success: true,
-      data: subscribers,
-    });
+    return jsonResponse(200, successResponse(subscribers));
   } catch (error) {
     console.error('Get subscribers error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);

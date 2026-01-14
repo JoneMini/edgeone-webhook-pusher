@@ -39,10 +39,7 @@ function errorResponse(code, message) {
 export async function handleGetStatus(context) {
   try {
     const status = await authService.getStatus();
-    return jsonResponse(200, {
-      success: true,
-      data: status,
-    });
+    return jsonResponse(200, successResponse(status));
   } catch (error) {
     console.error('Get init status error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
@@ -79,13 +76,10 @@ export async function handleInit(context) {
     // Initialize
     const result = await authService.initialize(wechatConfig);
 
-    return jsonResponse(200, {
-      success: true,
-      data: {
-        adminToken: result.adminToken,
-        message: 'Initialization successful. Please save your Admin Token securely.',
-      },
-    });
+    return jsonResponse(200, successResponse(
+      { adminToken: result.adminToken },
+      'Initialization successful. Please save your Admin Token securely.'
+    ));
   } catch (error) {
     console.error('Init error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);

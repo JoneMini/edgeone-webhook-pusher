@@ -53,10 +53,7 @@ function extractId(pathname) {
 async function handleList(context) {
   try {
     const openids = await openidService.list();
-    return jsonResponse(200, {
-      success: true,
-      data: openids,
-    });
+    return jsonResponse(200, successResponse(openids));
   } catch (error) {
     console.error('List openids error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
@@ -84,10 +81,7 @@ async function handleCreate(context) {
     }
 
     const data = await openidService.create(openId, name);
-    return jsonResponse(201, {
-      success: true,
-      data,
-    });
+    return jsonResponse(201, successResponse(data));
   } catch (error) {
     if (error.message === 'OpenID already exists') {
       return errorResponse(ErrorCodes.INVALID_PARAM, error.message);
@@ -106,10 +100,7 @@ async function handleGet(context, id) {
     if (!data) {
       return errorResponse(ErrorCodes.KEY_NOT_FOUND, 'OpenID not found');
     }
-    return jsonResponse(200, {
-      success: true,
-      data,
-    });
+    return jsonResponse(200, successResponse(data));
   } catch (error) {
     console.error('Get openid error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
@@ -137,10 +128,7 @@ async function handleUpdate(context, id) {
       return errorResponse(ErrorCodes.KEY_NOT_FOUND, 'OpenID not found');
     }
 
-    return jsonResponse(200, {
-      success: true,
-      data,
-    });
+    return jsonResponse(200, successResponse(data));
   } catch (error) {
     console.error('Update openid error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
@@ -169,10 +157,7 @@ async function handleDelete(context, id) {
       return errorResponse(ErrorCodes.KEY_NOT_FOUND, 'OpenID not found');
     }
 
-    return jsonResponse(200, {
-      success: true,
-      message: 'OpenID deleted',
-    });
+    return jsonResponse(200, successResponse(null, 'OpenID deleted'));
   } catch (error) {
     console.error('Delete openid error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);

@@ -26,7 +26,7 @@ export function registerStatsRoutes(router) {
     const messagesResult = await historyService.list({ page: 1, pageSize: 5 });
 
     // Format recent messages for dashboard
-    const recentMessages = messagesResult.messages.map((msg) => ({
+    const recentMessages = messagesResult.items.map((msg) => ({
       id: msg.id,
       title: msg.title,
       type: msg.type,

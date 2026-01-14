@@ -54,10 +54,7 @@ async function handleList(context) {
     const sendkeys = await sendkeyService.list();
     // Mask keys in response
     const maskedSendkeys = sendkeys.map((sk) => sendkeyService.maskSendKey(sk));
-    return jsonResponse(200, {
-      success: true,
-      data: maskedSendkeys,
-    });
+    return jsonResponse(200, successResponse(maskedSendkeys));
   } catch (error) {
     console.error('List sendkeys error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
@@ -115,10 +112,7 @@ async function handleGet(context, id) {
 
     // Mask key in response
     const maskedData = sendkeyService.maskSendKey(data);
-    return jsonResponse(200, {
-      success: true,
-      data: maskedData,
-    });
+    return jsonResponse(200, successResponse(maskedData));
   } catch (error) {
     console.error('Get sendkey error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
@@ -157,10 +151,7 @@ async function handleUpdate(context, id) {
 
     // Mask key in response
     const maskedData = sendkeyService.maskSendKey(data);
-    return jsonResponse(200, {
-      success: true,
-      data: maskedData,
-    });
+    return jsonResponse(200, successResponse(maskedData));
   } catch (error) {
     console.error('Update sendkey error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
@@ -177,10 +168,7 @@ async function handleDelete(context, id) {
       return errorResponse(ErrorCodes.KEY_NOT_FOUND, 'SendKey not found');
     }
 
-    return jsonResponse(200, {
-      success: true,
-      message: 'SendKey deleted',
-    });
+    return jsonResponse(200, successResponse(null, 'SendKey deleted'));
   } catch (error) {
     console.error('Delete sendkey error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);

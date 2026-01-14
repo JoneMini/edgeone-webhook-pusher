@@ -70,8 +70,10 @@ async function handleList(context) {
 
     const result = await historyService.list({ type, page, pageSize });
 
+    // Return with standard format plus pagination
     return jsonResponse(200, {
-      success: true,
+      code: 0,
+      message: '成功',
       data: result.items,
       pagination: {
         total: result.total,
@@ -96,10 +98,7 @@ async function handleGet(context, id) {
       return errorResponse(ErrorCodes.MESSAGE_NOT_FOUND, 'Message not found');
     }
 
-    return jsonResponse(200, {
-      success: true,
-      data: message,
-    });
+    return jsonResponse(200, successResponse(message));
   } catch (error) {
     console.error('Get message error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);

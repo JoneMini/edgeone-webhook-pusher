@@ -48,10 +48,7 @@ async function handleGetConfig(context) {
     // Mask sensitive fields
     const maskedConfig = configService.maskConfig(config);
 
-    return jsonResponse(200, {
-      success: true,
-      data: maskedConfig,
-    });
+    return jsonResponse(200, successResponse(maskedConfig));
   } catch (error) {
     console.error('Get config error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
@@ -84,10 +81,7 @@ async function handleUpdateConfig(context) {
     // Mask sensitive fields
     const maskedConfig = configService.maskConfig(updatedConfig);
 
-    return jsonResponse(200, {
-      success: true,
-      data: maskedConfig,
-    });
+    return jsonResponse(200, successResponse(maskedConfig));
   } catch (error) {
     console.error('Update config error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
