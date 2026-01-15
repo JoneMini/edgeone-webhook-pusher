@@ -1,9 +1,60 @@
 /**
  * Initialization API Routes
- * Feature: multi-tenant-refactor
+ * Feature: system-restructure
+ */
+
+/**
+ * @swagger
+ * /init/status:
+ *   get:
+ *     tags: [Init]
+ *     summary: 检查初始化状态
+ *     description: 检查系统是否已初始化
+ *     responses:
+ *       200:
+ *         description: 成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 0
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     initialized:
+ *                       type: boolean
  *
- * GET /api/init/status - Check initialization status
- * POST /api/init - Execute initialization
+ * /init:
+ *   post:
+ *     tags: [Init]
+ *     summary: 初始化系统
+ *     description: 首次初始化系统，生成 Admin Token。只能执行一次。
+ *     responses:
+ *       200:
+ *         description: 初始化成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 0
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     adminToken:
+ *                       type: string
+ *                       description: 管理员令牌，请妥善保存
+ *       400:
+ *         description: 系统已初始化
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 
 import { authService } from '../services/auth.js';

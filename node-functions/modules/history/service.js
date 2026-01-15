@@ -1,6 +1,8 @@
 /**
  * History Service - 消息历史记录管理
  * Module: history
+ * 
+ * 支持按 App 筛选消息历史
  */
 
 import { messagesKV } from '../../shared/kv-client.js';
@@ -8,7 +10,35 @@ import { KVKeys } from '../../shared/types.js';
 
 class HistoryService {
   /**
-   * 保存消息记录
+   * 保存消息记录（新版，支持 appId）
+   * @param {Object} message - 消息数据
+   * @param {string} message.id - 消息 ID
+   * @param {string} message.appId - 应用 ID
+   * @param {string} message.title - 消息标题
+   * @param {string} [message.desp] - 消息内容
+   * @param {Array} message.results - 发送结果
+   * @param {string} message.createdAt - 创建时间
+   * @returns {Promise<void>}
+   */
+  async saveMessage(message) {
+    // 保存消息记录
+    await messagesKV.put(KVKeys.MESSAGE(message.id), message);
+
+    // 更新全局消息列表
+    const globalList = (await messagesKV.get(KVKeys.MESSAGE_LIST)) || [];
+    globalList.unshift(message.id); // 新消息放在前面
+    await messagesKV.put(KVKeys.MESSAGE_LIST, globalList);
+
+    // 更新应用消息列表
+    if (message.appId) {
+      const appList = (await messagesKV.get(KVKeys.MESSAGE_APP(message.appId))) || [];
+      appList.unshift(message.id);
+      await messagesKV.put(KVKeys.MESSAGE_APP(message.appId), appList);
+    }
+  }
+
+  /**
+   * 保存消息记录（兼容旧版）
    * @param {Object} message - 消息数据
    * @returns {Promise<void>}
    */
@@ -30,21 +60,26 @@ class HistoryService {
    * @param {Object} options - 查询选项
    * @param {number} [options.page=1] - 页码
    * @param {number} [options.pageSize=20] - 每页数量
-   * @param {string} [options.type] - 消息类型筛选 (single/topic)
+   * @param {string} [options.appId] - 按应用筛选
    * @param {string} [options.startDate] - 开始时间
    * @param {string} [options.endDate] - 结束时间
    * @returns {Promise<{ messages: Object[], total: number, page: number, pageSize: number }>}
    */
   async list(options = {}) {
-    const { page = 1, pageSize = 20, type, startDate, endDate } = options;
+    const { page = 1, pageSize = 20, appId, startDate, endDate } = options;
 
-    // 获取所有消息 key
-    const keys = await messagesKV.listAll('msg:');
+    // 根据是否有 appId 筛选，选择不同的列表
+    let ids;
+    if (appId) {
+      ids = (await messagesKV.get(KVKeys.MESSAGE_APP(appId))) || [];
+    } else {
+      ids = (await messagesKV.get(KVKeys.MESSAGE_LIST)) || [];
+    }
     
     // 获取所有消息数据
     const allMessages = [];
-    for (const key of keys) {
-      const data = await messagesKV.get(key);
+    for (const id of ids) {
+      const data = await messagesKV.get(KVKeys.MESSAGE(id));
       if (data) {
         allMessages.push(data);
       }
@@ -52,10 +87,6 @@ class HistoryService {
 
     // 筛选
     let filtered = allMessages;
-
-    if (type) {
-      filtered = filtered.filter((m) => m.type === type);
-    }
 
     if (startDate) {
       const start = new Date(startDate);
@@ -67,15 +98,25 @@ class HistoryService {
       filtered = filtered.filter((m) => new Date(m.createdAt) <= end);
     }
 
-    // 按时间倒序排序
+    // 按时间倒序排序（列表已经是倒序，但为了安全起见再排一次）
     filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     // 分页
     const total = filtered.length;
-    const start = (page - 1) * pageSize;
-    const messages = filtered.slice(start, start + pageSize);
+    const startIdx = (page - 1) * pageSize;
+    const messages = filtered.slice(startIdx, startIdx + pageSize);
 
     return { messages, total, page, pageSize };
+  }
+
+  /**
+   * 按应用获取消息列表
+   * @param {string} appId - 应用 ID
+   * @param {Object} options - 查询选项
+   * @returns {Promise<{ messages: Object[], total: number, page: number, pageSize: number }>}
+   */
+  async listByApp(appId, options = {}) {
+    return this.list({ ...options, appId });
   }
 
   /**

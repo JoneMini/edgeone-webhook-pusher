@@ -12,12 +12,6 @@
  * 如需使用远程 KV，运行 edgeone pages link 关联项目
  */
 
-// Base URL for KV API (Edge Functions)
-// Node Functions 和 Edge Functions 运行在同一域下，使用相对路径即可
-function getDefaultBaseUrl() {
-  return '';
-}
-
 // Store for dynamic base URL (set from request context)
 let dynamicBaseUrl = null;
 
@@ -34,12 +28,12 @@ export function setKVBaseUrl(url) {
  * @returns {string}
  */
 function getBaseUrl() {
-  return dynamicBaseUrl || getDefaultBaseUrl();
+  return dynamicBaseUrl || '';
 }
 
 /**
  * Create a KV client for a specific namespace
- * @param {string} namespace - KV namespace (config, sendkeys, topics, openids, messages)
+ * @param {string} namespace - KV namespace (config, channels, apps, openids, messages)
  * @returns {Object}
  */
 function createKVClient(namespace) {
@@ -146,7 +140,7 @@ function createKVClient(namespace) {
 
 // Export KV clients for each namespace
 export const configKV = createKVClient('config');
-export const sendkeysKV = createKVClient('sendkeys');
-export const topicsKV = createKVClient('topics');
+export const channelsKV = createKVClient('channels');
+export const appsKV = createKVClient('apps');
 export const openidsKV = createKVClient('openids');
 export const messagesKV = createKVClient('messages');

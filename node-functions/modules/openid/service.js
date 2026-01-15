@@ -1,222 +1,218 @@
 /**
- * OpenID Service - 管理微信用户 OpenID 记录
+ * OpenID Service - 管理应用下的微信用户 OpenID 记录
  * Module: openid
+ * 
+ * OpenID 归属于 App，在应用维度管理用户绑定
  */
 
-import { openidsKV } from '../../shared/kv-client.js';
-import { generateId, now } from '../../shared/utils.js';
+import { openidsKV, appsKV } from '../../shared/kv-client.js';
+import { generateOpenIdRecordId, now } from '../../shared/utils.js';
 import { KVKeys } from '../../shared/types.js';
-
-/**
- * OpenID 来源类型
- */
-export const OpenIdSource = {
-  OAUTH: 'oauth',      // 扫码绑定
-  MESSAGE: 'message',  // 消息绑定
-};
 
 /**
  * OpenIdService - 管理 OpenID（微信用户）记录
  */
 class OpenIdService {
   /**
-   * 创建新的 OpenID 记录
-   * @param {string} openId - 微信 OpenID
-   * @param {string} source - 来源 (oauth/message)
-   * @param {string} [name] - 显示名称
-   * @returns {Promise<import('../../shared/types.js').OpenIdData>}
+   * 在指定应用下创建 OpenID 记录
+   * @param {string} appId - 应用 ID
+   * @param {Object} data - OpenID 数据
+   * @param {string} data.openId - 微信 OpenID
+   * @param {string} [data.nickname] - 用户昵称
+   * @param {string} [data.remark] - 备注
+   * @returns {Promise<import('../../shared/types.js').OpenID>}
    */
-  async create(openId, source, name) {
-    // 检查 OpenID 是否已存在
-    const existing = await this.findByOpenId(openId);
-    if (existing) {
-      throw new Error('OpenID already exists');
+  async create(appId, data) {
+    const { openId, nickname, remark } = data;
+
+    // 验证必填字段
+    if (!openId || !openId.trim()) {
+      throw new Error('openId is required');
     }
 
-    const id = `oid_${generateId()}`;
+    const trimmedOpenId = openId.trim();
+
+    // 验证应用存在
+    const app = await appsKV.get(KVKeys.APP(appId));
+    if (!app) {
+      throw new Error('App not found');
+    }
+
+    // 检查同一应用下是否已存在该 OpenID
+    const exists = await this.existsInApp(appId, trimmedOpenId);
+    if (exists) {
+      throw new Error('OpenID already exists in this app');
+    }
+
+    const id = generateOpenIdRecordId();
     const timestamp = now();
 
-    const data = {
+    const record = {
       id,
-      openId,
-      name: name || undefined,
-      source,
+      appId,
+      openId: trimmedOpenId,
+      ...(nickname && { nickname: nickname.trim() }),
+      ...(remark && { remark: remark.trim() }),
       createdAt: timestamp,
       updatedAt: timestamp,
     };
 
-    // 保存数据和索引
-    await openidsKV.put(KVKeys.OPENID(id), data);
-    await openidsKV.put(KVKeys.OPENID_INDEX(openId), id);
+    // 保存 OpenID 记录
+    await openidsKV.put(KVKeys.OPENID(id), record);
 
-    return data;
+    // 创建唯一性索引
+    await openidsKV.put(KVKeys.OPENID_INDEX(appId, openId), id);
+
+    // 更新应用的 OpenID 列表
+    const list = (await openidsKV.get(KVKeys.OPENID_APP(appId))) || [];
+    list.push(id);
+    await openidsKV.put(KVKeys.OPENID_APP(appId), list);
+
+    return record;
   }
 
   /**
-   * 获取或创建 OpenID 记录
-   * @param {string} openId - 微信 OpenID
-   * @param {string} source - 来源 (oauth/message)
-   * @returns {Promise<import('../../shared/types.js').OpenIdData>}
+   * 根据 ID 获取 OpenID 记录
+   * @param {string} id - OpenID 记录 ID
+   * @returns {Promise<import('../../shared/types.js').OpenID | null>}
    */
-  async getOrCreate(openId, source) {
-    const existing = await this.findByOpenId(openId);
-    if (existing) {
-      return existing;
-    }
-    return this.create(openId, source);
-  }
-
-  /**
-   * 获取所有 OpenID 记录
-   * @returns {Promise<import('../../shared/types.js').OpenIdData[]>}
-   */
-  async list() {
-    const result = await openidsKV.listAll('oid:');
-    const records = [];
-
-    for (const key of result) {
-      const data = await openidsKV.get(key);
-      if (data) {
-        records.push(data);
-      }
-    }
-
-    return records;
-  }
-
-  /**
-   * 根据内部 ID 获取 OpenID 记录
-   * @param {string} id - 内部 ID (oid_xxx)
-   * @returns {Promise<import('../../shared/types.js').OpenIdData | null>}
-   */
-  async get(id) {
+  async getById(id) {
     return openidsKV.get(KVKeys.OPENID(id));
   }
 
   /**
-   * 根据 OpenID 值查找记录
-   * @param {string} openId - 微信 OpenID
-   * @returns {Promise<import('../../shared/types.js').OpenIdData | null>}
+   * 获取指定应用下的所有 OpenID 列表
+   * @param {string} appId - 应用 ID
+   * @returns {Promise<import('../../shared/types.js').OpenID[]>}
    */
-  async findByOpenId(openId) {
-    const id = await openidsKV.get(KVKeys.OPENID_INDEX(openId));
-    if (!id) return null;
-    return this.get(id);
-  }
-
-  /**
-   * 更新 OpenID 记录
-   * @param {string} id - 内部 ID
-   * @param {{ name?: string }} updates
-   * @returns {Promise<import('../../shared/types.js').OpenIdData | null>}
-   */
-  async update(id, updates) {
-    const data = await this.get(id);
-    if (!data) return null;
-
-    const updatedData = {
-      ...data,
-      name: updates.name !== undefined ? updates.name : data.name,
-      updatedAt: now(),
-    };
-
-    await openidsKV.put(KVKeys.OPENID(id), updatedData);
-    return updatedData;
-  }
-
-  /**
-   * 删除 OpenID 记录
-   * 注意：调用者应先检查 OpenID 是否被 SendKey 或 Topic 引用
-   * @param {string} id - 内部 ID
-   * @returns {Promise<boolean>}
-   */
-  async delete(id) {
-    const data = await this.get(id);
-    if (!data) return false;
-
-    // 删除数据和索引
-    await openidsKV.delete(KVKeys.OPENID(id));
-    await openidsKV.delete(KVKeys.OPENID_INDEX(data.openId));
-
-    return true;
-  }
-
-  /**
-   * 批量获取 OpenID 记录
-   * @param {string[]} ids - 内部 ID 数组
-   * @returns {Promise<import('../../shared/types.js').OpenIdData[]>}
-   */
-  async getMany(ids) {
+  async listByApp(appId) {
+    const ids = (await openidsKV.get(KVKeys.OPENID_APP(appId))) || [];
     const records = [];
+
     for (const id of ids) {
-      const data = await this.get(id);
-      if (data) {
-        records.push(data);
+      const record = await openidsKV.get(KVKeys.OPENID(id));
+      if (record) {
+        records.push(record);
       }
     }
+
     return records;
   }
 
   /**
-   * 检查 OpenID 是否被 SendKey 或 Topic 引用
-   * @param {string} id - 内部 ID
-   * @param {Object} services - { sendkeyService, topicService }
-   * @returns {Promise<{ referenced: boolean, sendkeys: string[], topics: string[] }>}
+   * 更新 OpenID 记录
+   * @param {string} id - OpenID 记录 ID
+   * @param {Object} data - 更新数据
+   * @param {string} [data.nickname] - 用户昵称
+   * @param {string} [data.remark] - 备注
+   * @returns {Promise<import('../../shared/types.js').OpenID>}
    */
-  async checkReferences(id, services) {
-    const { sendkeyService, topicService } = services;
-    const sendkeys = [];
-    const topics = [];
-
-    // 检查 SendKeys
-    if (sendkeyService) {
-      const allSendkeys = await sendkeyService.list();
-      for (const sk of allSendkeys) {
-        if (sk.openIdRef === id) {
-          sendkeys.push(sk.id);
-        }
-      }
+  async update(id, data) {
+    const record = await this.getById(id);
+    if (!record) {
+      throw new Error('OpenID not found');
     }
 
-    // 检查 Topics
-    if (topicService) {
-      const allTopics = await topicService.list();
-      for (const topic of allTopics) {
-        if (topic.subscriberRefs?.includes(id)) {
-          topics.push(topic.id);
-        }
-      }
+    const { nickname, remark } = data;
+
+    if (nickname !== undefined) {
+      record.nickname = nickname ? nickname.trim() : undefined;
     }
 
-    return {
-      referenced: sendkeys.length > 0 || topics.length > 0,
-      sendkeys,
-      topics,
-    };
+    if (remark !== undefined) {
+      record.remark = remark ? remark.trim() : undefined;
+    }
+
+    record.updatedAt = now();
+
+    await openidsKV.put(KVKeys.OPENID(id), record);
+    return record;
   }
 
   /**
-   * 安全删除 OpenID 记录（检查引用）
-   * @param {string} id - 内部 ID
-   * @param {Object} services - { sendkeyService, topicService }
-   * @returns {Promise<{ success: boolean, error?: string, references?: Object }>}
+   * 删除 OpenID 记录
+   * @param {string} id - OpenID 记录 ID
+   * @returns {Promise<void>}
    */
-  async safeDelete(id, services) {
-    const refs = await this.checkReferences(id, services);
-    
-    if (refs.referenced) {
-      return {
-        success: false,
-        error: 'OpenID is referenced by SendKeys or Topics',
-        references: {
-          sendkeys: refs.sendkeys,
-          topics: refs.topics,
-        },
-      };
+  async delete(id) {
+    const record = await this.getById(id);
+    if (!record) {
+      throw new Error('OpenID not found');
     }
 
-    const deleted = await this.delete(id);
-    return { success: deleted };
+    const { appId, openId } = record;
+
+    // 删除唯一性索引
+    await openidsKV.delete(KVKeys.OPENID_INDEX(appId, openId));
+
+    // 删除 OpenID 记录
+    await openidsKV.delete(KVKeys.OPENID(id));
+
+    // 更新应用的 OpenID 列表
+    const list = (await openidsKV.get(KVKeys.OPENID_APP(appId))) || [];
+    const newList = list.filter((oid) => oid !== id);
+    await openidsKV.put(KVKeys.OPENID_APP(appId), newList);
+  }
+
+  /**
+   * 删除指定应用下的所有 OpenID
+   * @param {string} appId - 应用 ID
+   * @returns {Promise<void>}
+   */
+  async deleteByApp(appId) {
+    const ids = (await openidsKV.get(KVKeys.OPENID_APP(appId))) || [];
+
+    for (const id of ids) {
+      const record = await openidsKV.get(KVKeys.OPENID(id));
+      if (record) {
+        // 删除唯一性索引
+        await openidsKV.delete(KVKeys.OPENID_INDEX(appId, record.openId));
+        // 删除 OpenID 记录
+        await openidsKV.delete(KVKeys.OPENID(id));
+      }
+    }
+
+    // 删除应用的 OpenID 列表
+    await openidsKV.delete(KVKeys.OPENID_APP(appId));
+  }
+
+  /**
+   * 检查同一应用下是否已存在该 OpenID
+   * @param {string} appId - 应用 ID
+   * @param {string} openId - 微信 OpenID
+   * @returns {Promise<boolean>}
+   */
+  async existsInApp(appId, openId) {
+    const id = await openidsKV.get(KVKeys.OPENID_INDEX(appId, openId));
+    return id !== null;
+  }
+
+  /**
+   * 根据应用 ID 和 OpenID 值查找记录
+   * @param {string} appId - 应用 ID
+   * @param {string} openId - 微信 OpenID
+   * @returns {Promise<import('../../shared/types.js').OpenID | null>}
+   */
+  async findByOpenId(appId, openId) {
+    const id = await openidsKV.get(KVKeys.OPENID_INDEX(appId, openId));
+    if (!id) return null;
+    return this.getById(id);
+  }
+
+  /**
+   * 批量获取 OpenID 记录
+   * @param {string[]} ids - OpenID 记录 ID 数组
+   * @returns {Promise<import('../../shared/types.js').OpenID[]>}
+   */
+  async getMany(ids) {
+    const records = [];
+    for (const id of ids) {
+      const record = await this.getById(id);
+      if (record) {
+        records.push(record);
+      }
+    }
+    return records;
   }
 }
 

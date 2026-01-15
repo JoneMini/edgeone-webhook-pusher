@@ -1,11 +1,13 @@
 /**
  * EdgeOne Node Functions - Webhook Handler (Koa)
  * Route: /send/* and /*.send
- * Feature: multi-tenant-refactor
+ * Feature: system-restructure
  *
  * Handles webhook-style push requests:
- * - /:sendKey.send?title=xxx&desp=xxx
- * - /send/:sendKey?title=xxx&desp=xxx
+ * - /{appKey}.send?title=xxx&desp=xxx (GET)
+ * - /{appKey}.send with JSON body (POST)
+ * - /send/{appKey}?title=xxx&desp=xxx (GET)
+ * - /send/{appKey} with JSON body (POST)
  *
  * @see https://github.com/TencentEdgeOne/koa-template
  */
@@ -16,6 +18,7 @@ import bodyParser from 'koa-bodyparser';
 import { ErrorCodes, ErrorMessages, errorResponse, getHttpStatus } from '../shared/error-codes.js';
 import { sanitizeInput } from '../shared/utils.js';
 import { pushService } from '../modules/push/service.js';
+import { setKVBaseUrl } from '../shared/kv-client.js';
 
 // Create Koa application
 const app = new Koa();
@@ -46,6 +49,13 @@ app.use(async (ctx, next) => {
   await next();
 });
 
+// Set KV base URL from request context
+app.use(async (ctx, next) => {
+  const origin = `${ctx.protocol}://${ctx.host}`;
+  setKVBaseUrl(origin);
+  await next();
+});
+
 // Error handling
 app.use(async (ctx, next) => {
   try {
@@ -58,33 +68,48 @@ app.use(async (ctx, next) => {
 });
 
 /**
+ * Map error message to HTTP status
+ */
+function mapErrorToStatus(errorMsg) {
+  if (errorMsg === 'App not found') return 404;
+  if (errorMsg === 'No OpenIDs bound to this app') return 400;
+  if (errorMsg === 'Channel not found') return 500;
+  if (errorMsg === 'Failed to get access token') return 500;
+  return 500;
+}
+
+/**
  * Handle push request
  */
-async function handlePush(ctx, sendKey) {
+async function handlePush(ctx, appKey) {
   // Merge GET params and POST body
   const query = ctx.query;
   const body = ctx.request.body || {};
 
   const title = query.title || body.title;
   const desp = query.desp || body.desp || body.content;
+  const data = body.data; // 模板消息数据
 
   // Validate required fields
   if (!title) {
     ctx.status = 400;
-    ctx.body = errorResponse(ErrorCodes.MISSING_TITLE);
+    ctx.body = errorResponse(ErrorCodes.MISSING_TITLE, 'Missing required field: title');
     return;
   }
 
   // Sanitize inputs
-  const sanitizedTitle = sanitizeInput(title);
-  const sanitizedDesp = desp ? sanitizeInput(desp) : undefined;
+  const message = {
+    title: sanitizeInput(title),
+    desp: desp ? sanitizeInput(desp) : undefined,
+    data,
+  };
 
   // Execute push
-  const result = await pushService.pushBySendKey(sendKey, sanitizedTitle, sanitizedDesp);
+  const result = await pushService.push(appKey, message);
 
-  if (!result.success) {
-    ctx.status = getHttpStatus(result.error);
-    ctx.body = errorResponse(result.error);
+  if (result.error) {
+    ctx.status = mapErrorToStatus(result.error);
+    ctx.body = errorResponse(ErrorCodes.INTERNAL_ERROR, result.error);
     return;
   }
 
@@ -93,20 +118,18 @@ async function handlePush(ctx, sendKey) {
     message: 'success',
     data: {
       pushId: result.pushId,
-      results: [
-        {
-          success: result.success,
-          msgId: result.msgId,
-        },
-      ],
+      total: result.total,
+      success: result.success,
+      failed: result.failed,
+      results: result.results,
     },
   };
 }
 
-// Route: /send/:sendKey
-router.all('/:sendKey', async (ctx) => {
-  const { sendKey } = ctx.params;
-  await handlePush(ctx, sendKey);
+// Route: /send/:appKey
+router.all('/:appKey', async (ctx) => {
+  const { appKey } = ctx.params;
+  await handlePush(ctx, appKey);
 });
 
 // Use router middleware

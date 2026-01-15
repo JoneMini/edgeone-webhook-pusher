@@ -1,148 +1,182 @@
 /**
- * Channel Service - 渠道配置管理
- * Module: channel
+ * Channel Service - 渠道管理
+ * 管理消息发送渠道（如微信公众号）
  */
 
-import { configKV } from '../../shared/kv-client.js';
-import { maskCredential } from '../../shared/utils.js';
-import {
-  getChannelAdapter,
-  getAllChannelsInfo,
-  getSensitiveFields,
-  validateChannelCredentials,
-  sendViaChannel,
-} from './adapters/registry.js';
-
-const CONFIG_KEY = 'config';
+import { channelsKV, appsKV } from '../../shared/kv-client.js';
+import { generateChannelId, now, maskCredential } from '../../shared/utils.js';
+import { KVKeys, ChannelTypes } from '../../shared/types.js';
 
 class ChannelService {
   /**
-   * 获取渠道配置
-   * @param {string} type - 渠道类型
-   * @param {boolean} mask - 是否脱敏
-   * @returns {Promise<Object | null>}
+   * 创建渠道
+   * @param {Object} data - 渠道数据
+   * @param {string} data.name - 渠道名称
+   * @param {'wechat'} data.type - 渠道类型
+   * @param {Object} data.config - 渠道配置
+   * @param {string} data.config.appId - 微信 AppID
+   * @param {string} data.config.appSecret - 微信 AppSecret
+   * @returns {Promise<import('../../shared/types.js').Channel>}
    */
-  async getConfig(type, mask = true) {
-    const config = await configKV.get(CONFIG_KEY);
-    if (!config) return null;
+  async create(data) {
+    const { name, type = ChannelTypes.WECHAT, config } = data;
 
-    const channelConfig = config.channels?.[type] || config.wechat; // 兼容旧配置
-    if (!channelConfig) return null;
-
-    if (mask) {
-      return this.maskConfig(type, channelConfig);
+    // 验证必填字段
+    if (!name || !name.trim()) {
+      throw new Error('Channel name is required');
     }
-    return channelConfig;
+    if (!config?.appId) {
+      throw new Error('appId is required');
+    }
+    if (!config?.appSecret) {
+      throw new Error('appSecret is required');
+    }
+
+    const id = generateChannelId();
+    const timestamp = now();
+
+    const channel = {
+      id,
+      name: name.trim(),
+      type,
+      config: {
+        appId: config.appId,
+        appSecret: config.appSecret,
+      },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    // 保存渠道
+    await channelsKV.put(KVKeys.CHANNEL(id), channel);
+
+    // 更新渠道列表
+    const list = (await channelsKV.get(KVKeys.CHANNEL_LIST)) || [];
+    list.push(id);
+    await channelsKV.put(KVKeys.CHANNEL_LIST, list);
+
+    return channel;
   }
 
   /**
-   * 更新渠道配置
-   * @param {string} type - 渠道类型
-   * @param {Object} channelConfig - 渠道配置
-   * @returns {Promise<{ valid: boolean, error?: string }>}
+   * 根据 ID 获取渠道
+   * @param {string} id - 渠道 ID
+   * @returns {Promise<import('../../shared/types.js').Channel | null>}
    */
-  async updateConfig(type, channelConfig) {
-    // 验证配置
-    const validation = await validateChannelCredentials(type, channelConfig);
-    if (!validation.valid) {
-      return validation;
-    }
-
-    // 获取现有配置
-    const config = (await configKV.get(CONFIG_KEY)) || {};
-
-    // 更新渠道配置
-    if (!config.channels) {
-      config.channels = {};
-    }
-    config.channels[type] = channelConfig;
-
-    // 兼容旧配置结构
-    if (type === 'wechat-template') {
-      config.wechat = channelConfig;
-    }
-
-    config.updatedAt = new Date().toISOString();
-
-    await configKV.put(CONFIG_KEY, config);
-    return { valid: true };
-  }
-
-  /**
-   * 验证渠道配置
-   * @param {string} type - 渠道类型
-   * @param {Object} channelConfig - 渠道配置
-   * @returns {Promise<{ valid: boolean, error?: string }>}
-   */
-  async validateConfig(type, channelConfig) {
-    return validateChannelCredentials(type, channelConfig);
-  }
-
-  /**
-   * 脱敏渠道配置
-   * @param {string} type - 渠道类型
-   * @param {Object} channelConfig - 渠道配置
-   * @returns {Object}
-   */
-  maskConfig(type, channelConfig) {
-    const sensitiveFields = getSensitiveFields(type);
-    const masked = { ...channelConfig };
-
-    for (const field of sensitiveFields) {
-      if (masked[field]) {
-        masked[field] = maskCredential(masked[field]);
-      }
-    }
-
-    return masked;
+  async getById(id) {
+    return channelsKV.get(KVKeys.CHANNEL(id));
   }
 
   /**
    * 获取所有渠道列表
-   * @returns {Object[]}
+   * @returns {Promise<import('../../shared/types.js').Channel[]>}
    */
-  listChannels() {
-    return getAllChannelsInfo();
-  }
+  async list() {
+    const ids = (await channelsKV.get(KVKeys.CHANNEL_LIST)) || [];
+    const channels = [];
 
-  /**
-   * 获取渠道适配器
-   * @param {string} type - 渠道类型
-   * @returns {Object | undefined}
-   */
-  getAdapter(type) {
-    return getChannelAdapter(type);
-  }
-
-  /**
-   * 通过渠道发送消息
-   * @param {string} type - 渠道类型
-   * @param {Object} message - 消息
-   * @param {Object} credentials - 凭证
-   * @returns {Promise<{ success: boolean, error?: string, externalId?: string }>}
-   */
-  async send(type, message, credentials) {
-    return sendViaChannel(type, message, credentials);
-  }
-
-  /**
-   * 获取默认渠道的完整凭证
-   * @param {string} openId - 目标 OpenID
-   * @returns {Promise<Object | null>}
-   */
-  async getDefaultCredentials(openId) {
-    const config = await configKV.get(CONFIG_KEY);
-    const wechat = config?.wechat || config?.channels?.['wechat-template'];
-
-    if (!wechat?.appId || !wechat?.appSecret || !wechat?.templateId) {
-      return null;
+    for (const id of ids) {
+      const channel = await channelsKV.get(KVKeys.CHANNEL(id));
+      if (channel) {
+        channels.push(channel);
+      }
     }
 
+    return channels;
+  }
+
+  /**
+   * 更新渠道
+   * @param {string} id - 渠道 ID
+   * @param {Object} data - 更新数据
+   * @returns {Promise<import('../../shared/types.js').Channel>}
+   */
+  async update(id, data) {
+    const channel = await this.getById(id);
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
+    const { name, config } = data;
+
+    if (name !== undefined) {
+      if (!name.trim()) {
+        throw new Error('Channel name cannot be empty');
+      }
+      channel.name = name.trim();
+    }
+
+    if (config) {
+      if (config.appId !== undefined) {
+        channel.config.appId = config.appId;
+      }
+      if (config.appSecret !== undefined) {
+        channel.config.appSecret = config.appSecret;
+      }
+    }
+
+    channel.updatedAt = now();
+
+    await channelsKV.put(KVKeys.CHANNEL(id), channel);
+    return channel;
+  }
+
+  /**
+   * 删除渠道
+   * @param {string} id - 渠道 ID
+   * @returns {Promise<void>}
+   */
+  async delete(id) {
+    const channel = await this.getById(id);
+    if (!channel) {
+      throw new Error('Channel not found');
+    }
+
+    // 检查是否被应用引用
+    const isReferenced = await this.isReferenced(id);
+    if (isReferenced) {
+      throw new Error('Channel is referenced by apps and cannot be deleted');
+    }
+
+    // 删除渠道
+    await channelsKV.delete(KVKeys.CHANNEL(id));
+
+    // 更新渠道列表
+    const list = (await channelsKV.get(KVKeys.CHANNEL_LIST)) || [];
+    const newList = list.filter((cid) => cid !== id);
+    await channelsKV.put(KVKeys.CHANNEL_LIST, newList);
+  }
+
+  /**
+   * 检查渠道是否被应用引用
+   * @param {string} id - 渠道 ID
+   * @returns {Promise<boolean>}
+   */
+  async isReferenced(id) {
+    const appIds = (await appsKV.get(KVKeys.APP_LIST)) || [];
+
+    for (const appId of appIds) {
+      const app = await appsKV.get(KVKeys.APP(appId));
+      if (app && app.channelId === id) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * 脱敏渠道配置
+   * @param {import('../../shared/types.js').Channel} channel
+   * @returns {Object}
+   */
+  maskChannel(channel) {
     return {
-      appId: wechat.appId,
-      appSecret: wechat.appSecret,
-      templateId: wechat.templateId,
-      openId,
+      ...channel,
+      config: {
+        appId: channel.config.appId,
+        appSecret: maskCredential(channel.config.appSecret),
+      },
     };
   }
 }

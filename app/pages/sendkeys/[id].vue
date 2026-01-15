@@ -232,19 +232,18 @@ onMounted(() => {
               <h4>使用示例</h4>
               <t-tabs default-value="curl">
                 <t-tab-panel value="curl" label="cURL">
-                  <pre><code>curl -X POST "{{ getWebhookUrl() }}" \
-  -H "Content-Type: application/json" \
-  -d '{"title": "测试消息", "content": "这是消息内容"}'</code></pre>
+                  <pre><code>curl "{{ getWebhookUrl() }}?title=测试消息&amp;desp=这是消息内容"</code></pre>
                 </t-tab-panel>
                 <t-tab-panel value="js" label="JavaScript">
-                  <pre><code>fetch("{{ getWebhookUrl() }}", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    title: "测试消息",
-    content: "这是消息内容"
-  })
-});</code></pre>
+                  <pre><code>const params = new URLSearchParams({
+  title: "测试消息",
+  desp: "这是消息内容"
+});
+fetch(`{{ getWebhookUrl() }}?${params}`);</code></pre>
+                </t-tab-panel>
+                <t-tab-panel value="browser" label="浏览器">
+                  <p class="browser-tip">直接在浏览器地址栏访问：</p>
+                  <pre><code>{{ getWebhookUrl() }}?title=测试消息&amp;desp=这是消息内容</code></pre>
                 </t-tab-panel>
               </t-tabs>
             </div>
@@ -408,6 +407,12 @@ onMounted(() => {
 .usage-example code {
   font-size: 13px;
   line-height: 1.5;
+}
+
+.browser-tip {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--td-text-color-secondary);
 }
 
 @media (max-width: 768px) {

@@ -1,24 +1,155 @@
 /**
- * OpenID Management API Routes
- * Feature: multi-tenant-refactor
- *
- * GET /api/openids - List all OpenIDs
- * POST /api/openids - Create OpenID
- * GET /api/openids/:id - Get single OpenID
- * PUT /api/openids/:id - Update OpenID
- * DELETE /api/openids/:id - Delete OpenID
+ * OpenID Management API Routes (nested under Apps)
+ * Feature: system-restructure
  *
  * All routes require Admin Token authentication
  */
 
+/**
+ * @swagger
+ * /apps/{appId}/openids:
+ *   parameters:
+ *     - name: appId
+ *       in: path
+ *       required: true
+ *       schema:
+ *         type: string
+ *       description: 应用 ID
+ *   get:
+ *     tags: [OpenIDs]
+ *     summary: 获取应用下的 OpenID 列表
+ *     security:
+ *       - BearerAuth: []
+ *       - AdminToken: []
+ *     responses:
+ *       200:
+ *         description: 成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 0
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/OpenID'
+ *       404:
+ *         description: 应用不存在
+ *   post:
+ *     tags: [OpenIDs]
+ *     summary: 添加 OpenID
+ *     security:
+ *       - BearerAuth: []
+ *       - AdminToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateOpenID'
+ *     responses:
+ *       201:
+ *         description: 添加成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 0
+ *                 data:
+ *                   $ref: '#/components/schemas/OpenID'
+ *       400:
+ *         description: 参数错误
+ *       404:
+ *         description: 应用不存在
+ *       409:
+ *         description: OpenID 已存在
+ *
+ * /apps/{appId}/openids/{id}:
+ *   parameters:
+ *     - name: appId
+ *       in: path
+ *       required: true
+ *       schema:
+ *         type: string
+ *       description: 应用 ID
+ *     - name: id
+ *       in: path
+ *       required: true
+ *       schema:
+ *         type: string
+ *       description: OpenID 记录 ID
+ *   get:
+ *     tags: [OpenIDs]
+ *     summary: 获取 OpenID 详情
+ *     security:
+ *       - BearerAuth: []
+ *       - AdminToken: []
+ *     responses:
+ *       200:
+ *         description: 成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 0
+ *                 data:
+ *                   $ref: '#/components/schemas/OpenID'
+ *       404:
+ *         description: OpenID 不存在
+ *   put:
+ *     tags: [OpenIDs]
+ *     summary: 更新 OpenID
+ *     security:
+ *       - BearerAuth: []
+ *       - AdminToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               nickname:
+ *                 type: string
+ *               remark:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: 更新成功
+ *       404:
+ *         description: OpenID 不存在
+ *   delete:
+ *     tags: [OpenIDs]
+ *     summary: 删除 OpenID
+ *     security:
+ *       - BearerAuth: []
+ *       - AdminToken: []
+ *     responses:
+ *       200:
+ *         description: 删除成功
+ *       404:
+ *         description: OpenID 不存在
+ */
+
 import { openidService } from '../modules/openid/service.js';
-import { sendkeyService } from '../modules/key/sendkey.service.js';
-import { topicService } from '../modules/key/topic.service.js';
+import { appService } from '../modules/app/service.js';
 import { withAdminAuth } from '../middleware/admin-auth.js';
 import { ErrorCodes, errorResponse as createErrorBody, successResponse, getHttpStatus } from '../shared/error-codes.js';
 
 /**
  * Create JSON response
+ * @param {number} status - HTTP status code
+ * @param {Object} data - Response data
+ * @returns {Response}
  */
 function jsonResponse(status, data) {
   return new Response(JSON.stringify(data), {
@@ -38,21 +169,38 @@ function errorResponse(code, message) {
 }
 
 /**
- * Extract ID from URL path
- * @param {string} pathname - URL pathname
- * @returns {string|null}
+ * Extract app ID and openid ID from URL path
+ * @param {string} pathname
+ * @returns {{ appId: string | null, openidId: string | null }}
  */
-function extractId(pathname) {
-  const match = pathname.match(/\/api\/openids\/([^/]+)/);
-  return match ? match[1] : null;
+function extractIds(pathname) {
+  // Match /api/apps/:appId/openids/:openidId
+  const fullMatch = pathname.match(/\/api\/apps\/([^/]+)\/openids\/([^/]+)/);
+  if (fullMatch) {
+    return { appId: fullMatch[1], openidId: fullMatch[2] };
+  }
+
+  // Match /api/apps/:appId/openids
+  const appMatch = pathname.match(/\/api\/apps\/([^/]+)\/openids/);
+  if (appMatch) {
+    return { appId: appMatch[1], openidId: null };
+  }
+
+  return { appId: null, openidId: null };
 }
 
 /**
- * GET /api/openids - List all OpenIDs
+ * GET /api/apps/:appId/openids - Get all OpenIDs for an app
  */
-async function handleList(context) {
+async function handleListOpenIds(context, appId) {
   try {
-    const openids = await openidService.list();
+    // Verify app exists
+    const app = await appService.getById(appId);
+    if (!app) {
+      return errorResponse(ErrorCodes.NOT_FOUND, 'App not found');
+    }
+
+    const openids = await openidService.listByApp(appId);
     return jsonResponse(200, successResponse(openids));
   } catch (error) {
     console.error('List openids error:', error);
@@ -61,12 +209,18 @@ async function handleList(context) {
 }
 
 /**
- * POST /api/openids - Create OpenID
+ * POST /api/apps/:appId/openids - Add an OpenID to an app
  */
-async function handleCreate(context) {
+async function handleCreateOpenId(context, appId) {
   const { request } = context;
 
   try {
+    // Verify app exists
+    const app = await appService.getById(appId);
+    if (!app) {
+      return errorResponse(ErrorCodes.NOT_FOUND, 'App not found');
+    }
+
     let body;
     try {
       body = await request.json();
@@ -74,33 +228,39 @@ async function handleCreate(context) {
       return errorResponse(ErrorCodes.INVALID_PARAM, 'Invalid JSON body');
     }
 
-    const { openId, name } = body;
-
-    if (!openId) {
-      return errorResponse(ErrorCodes.INVALID_PARAM, 'openId is required');
-    }
-
-    const data = await openidService.create(openId, name);
-    return jsonResponse(201, successResponse(data));
+    const openid = await openidService.create(appId, body);
+    return jsonResponse(201, successResponse(openid, 'OpenID added successfully'));
   } catch (error) {
-    if (error.message === 'OpenID already exists') {
+    console.error('Create openid error:', error);
+    if (error.message.includes('required')) {
       return errorResponse(ErrorCodes.INVALID_PARAM, error.message);
     }
-    console.error('Create openid error:', error);
+    if (error.message.includes('already exists')) {
+      return errorResponse(ErrorCodes.CONFLICT, error.message);
+    }
+    if (error.message === 'App not found') {
+      return errorResponse(ErrorCodes.NOT_FOUND, error.message);
+    }
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
   }
 }
 
 /**
- * GET /api/openids/:id - Get single OpenID
+ * GET /api/apps/:appId/openids/:id - Get OpenID by ID
  */
-async function handleGet(context, id) {
+async function handleGetOpenId(context, appId, openidId) {
   try {
-    const data = await openidService.get(id);
-    if (!data) {
-      return errorResponse(ErrorCodes.KEY_NOT_FOUND, 'OpenID not found');
+    const openid = await openidService.getById(openidId);
+    if (!openid) {
+      return errorResponse(ErrorCodes.NOT_FOUND, 'OpenID not found');
     }
-    return jsonResponse(200, successResponse(data));
+
+    // Verify the OpenID belongs to the specified app
+    if (openid.appId !== appId) {
+      return errorResponse(ErrorCodes.NOT_FOUND, 'OpenID not found in this app');
+    }
+
+    return jsonResponse(200, successResponse(openid));
   } catch (error) {
     console.error('Get openid error:', error);
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
@@ -108,12 +268,21 @@ async function handleGet(context, id) {
 }
 
 /**
- * PUT /api/openids/:id - Update OpenID
+ * PUT /api/apps/:appId/openids/:id - Update OpenID
  */
-async function handleUpdate(context, id) {
+async function handleUpdateOpenId(context, appId, openidId) {
   const { request } = context;
 
   try {
+    // Verify the OpenID exists and belongs to the app
+    const existing = await openidService.getById(openidId);
+    if (!existing) {
+      return errorResponse(ErrorCodes.NOT_FOUND, 'OpenID not found');
+    }
+    if (existing.appId !== appId) {
+      return errorResponse(ErrorCodes.NOT_FOUND, 'OpenID not found in this app');
+    }
+
     let body;
     try {
       body = await request.json();
@@ -121,45 +290,38 @@ async function handleUpdate(context, id) {
       return errorResponse(ErrorCodes.INVALID_PARAM, 'Invalid JSON body');
     }
 
-    const { name } = body;
-    const data = await openidService.update(id, { name });
-
-    if (!data) {
-      return errorResponse(ErrorCodes.KEY_NOT_FOUND, 'OpenID not found');
-    }
-
-    return jsonResponse(200, successResponse(data));
+    const openid = await openidService.update(openidId, body);
+    return jsonResponse(200, successResponse(openid, 'OpenID updated successfully'));
   } catch (error) {
     console.error('Update openid error:', error);
+    if (error.message === 'OpenID not found') {
+      return errorResponse(ErrorCodes.NOT_FOUND, error.message);
+    }
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
   }
 }
 
 /**
- * DELETE /api/openids/:id - Delete OpenID
+ * DELETE /api/apps/:appId/openids/:id - Delete OpenID
  */
-async function handleDelete(context, id) {
+async function handleDeleteOpenId(context, appId, openidId) {
   try {
-    // Check references
-    const refs = await openidService.checkReferences(id, {
-      sendkeyService,
-      topicService,
-    });
-
-    if (refs.referenced) {
-      return errorResponse(ErrorCodes.INVALID_PARAM, 
-        `Cannot delete: OpenID is referenced by ${refs.sendkeys.length} SendKey(s) and ${refs.topics.length} Topic(s)`
-      );
+    // Verify the OpenID exists and belongs to the app
+    const existing = await openidService.getById(openidId);
+    if (!existing) {
+      return errorResponse(ErrorCodes.NOT_FOUND, 'OpenID not found');
+    }
+    if (existing.appId !== appId) {
+      return errorResponse(ErrorCodes.NOT_FOUND, 'OpenID not found in this app');
     }
 
-    const deleted = await openidService.delete(id);
-    if (!deleted) {
-      return errorResponse(ErrorCodes.KEY_NOT_FOUND, 'OpenID not found');
-    }
-
-    return jsonResponse(200, successResponse(null, 'OpenID deleted'));
+    await openidService.delete(openidId);
+    return jsonResponse(200, successResponse(null, 'OpenID deleted successfully'));
   } catch (error) {
     console.error('Delete openid error:', error);
+    if (error.message === 'OpenID not found') {
+      return errorResponse(ErrorCodes.NOT_FOUND, error.message);
+    }
     return errorResponse(ErrorCodes.INTERNAL_ERROR, error.message);
   }
 }
@@ -186,28 +348,32 @@ export async function onRequest(context) {
 
   // All openid routes require admin auth
   const handler = async (ctx) => {
-    const id = extractId(pathname);
+    const { appId, openidId } = extractIds(pathname);
 
-    // Collection routes: /api/openids
-    if (!id) {
+    if (!appId) {
+      return errorResponse(ErrorCodes.NOT_FOUND, 'Route not found');
+    }
+
+    // Collection routes: /api/apps/:appId/openids
+    if (!openidId) {
       switch (request.method) {
         case 'GET':
-          return handleList(ctx);
+          return handleListOpenIds(ctx, appId);
         case 'POST':
-          return handleCreate(ctx);
+          return handleCreateOpenId(ctx, appId);
         default:
           return errorResponse(ErrorCodes.INVALID_PARAM, 'Method not allowed');
       }
     }
 
-    // Item routes: /api/openids/:id
+    // Resource routes: /api/apps/:appId/openids/:id
     switch (request.method) {
       case 'GET':
-        return handleGet(ctx, id);
+        return handleGetOpenId(ctx, appId, openidId);
       case 'PUT':
-        return handleUpdate(ctx, id);
+        return handleUpdateOpenId(ctx, appId, openidId);
       case 'DELETE':
-        return handleDelete(ctx, id);
+        return handleDeleteOpenId(ctx, appId, openidId);
       default:
         return errorResponse(ErrorCodes.INVALID_PARAM, 'Method not allowed');
     }

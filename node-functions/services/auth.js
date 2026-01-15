@@ -17,11 +17,14 @@ class AuthService {
 
   /**
    * Initialize the application and generate admin token
+   * This operation is idempotent - calling it on an already initialized system
+   * will throw an error and NOT modify the existing Admin Token.
+   * This ensures Property 3: Initialization Idempotence
    * @param {Object} [wechatConfig] - Optional WeChat configuration
    * @returns {Promise<{ adminToken: string, config: import('../shared/types.js').AppConfig }>}
    */
   async initialize(wechatConfig) {
-    // Check if already initialized
+    // Check if already initialized - this ensures idempotence
     const isInit = await this.isInitialized();
     if (isInit) {
       throw new Error('Application is already initialized');

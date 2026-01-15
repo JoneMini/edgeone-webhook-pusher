@@ -1,11 +1,93 @@
 /**
  * Message History API Routes
- * Feature: multi-tenant-refactor
- *
- * GET /api/messages - List messages with pagination
- * GET /api/messages/:id - Get single message
+ * Feature: system-restructure
  *
  * All routes require Admin Token authentication
+ */
+
+/**
+ * @swagger
+ * /messages:
+ *   get:
+ *     tags: [Messages]
+ *     summary: 获取消息历史
+ *     security:
+ *       - BearerAuth: []
+ *       - AdminToken: []
+ *     parameters:
+ *       - name: page
+ *         in: query
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 页码
+ *       - name: pageSize
+ *         in: query
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: 每页数量
+ *       - name: appId
+ *         in: query
+ *         schema:
+ *           type: string
+ *         description: 按应用筛选
+ *     responses:
+ *       200:
+ *         description: 成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 0
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Message'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     page:
+ *                       type: integer
+ *                     pageSize:
+ *                       type: integer
+ *       401:
+ *         description: 未授权
+ *
+ * /messages/{id}:
+ *   parameters:
+ *     - name: id
+ *       in: path
+ *       required: true
+ *       schema:
+ *         type: string
+ *       description: 消息 ID
+ *   get:
+ *     tags: [Messages]
+ *     summary: 获取消息详情
+ *     security:
+ *       - BearerAuth: []
+ *       - AdminToken: []
+ *     responses:
+ *       200:
+ *         description: 成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 0
+ *                 data:
+ *                   $ref: '#/components/schemas/Message'
+ *       404:
+ *         description: 消息不存在
  */
 
 import { historyService } from '../modules/history/service.js';

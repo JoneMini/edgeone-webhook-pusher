@@ -1,6 +1,6 @@
 /**
  * API Composable
- * Feature: frontend-admin-ui
+ * Feature: system-restructure
  * 
  * Unified API request handling with authentication,
  * error handling, and 401 redirect.
@@ -18,96 +18,118 @@ interface ApiResponse<T = unknown> {
 
 // Data types
 export interface StatsData {
-  sendKeyCount: number;
-  topicCount: number;
+  channelCount: number;
+  appCount: number;
   messageCount: number;
   recentMessages: {
     id: string;
     title: string;
-    type: 'single' | 'topic';
+    appId: string;
     success: boolean;
     createdAt: string;
   }[];
 }
 
 export interface AppConfig {
-  wechat: {
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Channel types
+export interface ChannelData {
+  id: string;
+  name: string;
+  type: 'wechat';
+  config: {
     appId: string;
     appSecret: string;
-    templateId: string;
-    msgToken?: string;
-  };
-  rateLimit: {
-    perMinute: number;
-  };
-  retention: {
-    days: number;
   };
   createdAt: string;
   updatedAt: string;
 }
 
+export interface CreateChannelInput {
+  name: string;
+  type: 'wechat';
+  config: {
+    appId: string;
+    appSecret: string;
+  };
+}
+
+export interface UpdateChannelInput {
+  name?: string;
+  config?: {
+    appId?: string;
+    appSecret?: string;
+  };
+}
+
+
+// App types
+export interface AppData {
+  id: string;
+  key: string;
+  name: string;
+  channelId: string;
+  pushMode: 'single' | 'subscribe';
+  messageType: 'normal' | 'template';
+  templateId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAppInput {
+  name: string;
+  channelId: string;
+  pushMode: 'single' | 'subscribe';
+  messageType: 'normal' | 'template';
+  templateId?: string;
+}
+
+export interface UpdateAppInput {
+  name?: string;
+  templateId?: string;
+}
+
+// OpenID types
 export interface OpenIdData {
   id: string;
+  appId: string;
   openId: string;
-  name?: string;
-  source: string;
+  nickname?: string;
+  remark?: string;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface SendKeyData {
-  id: string;
-  key: string;
-  name: string;
-  openIdRef?: string;
-  openId?: OpenIdData;
-  bindUrl: string;
-  createdAt: string;
-  updatedAt: string;
+export interface CreateOpenIdInput {
+  openId: string;
+  nickname?: string;
+  remark?: string;
 }
 
-export interface TopicData {
-  id: string;
-  key: string;
-  name: string;
-  subscriberCount: number;
-  subscriberRefs: string[];
-  subscribers?: OpenIdData[];
-  subscribeUrl: string;
-  createdAt: string;
-  updatedAt: string;
+export interface UpdateOpenIdInput {
+  nickname?: string;
+  remark?: string;
 }
 
+// Message types
 export interface MessageData {
   id: string;
-  type: 'single' | 'topic';
-  keyId: string;
-  keyName?: string;
+  appId: string;
+  appName?: string;
   title: string;
   content?: string;
+  pushMode: 'single' | 'subscribe';
   results: {
     openId: string;
-    openIdName?: string;
+    nickname?: string;
     success: boolean;
     error?: string;
     msgId?: string;
   }[];
   createdAt: string;
-}
-
-export interface ChannelTypeInfo {
-  type: string;
-  name: string;
-  description: string;
-  configSchema: Record<string, {
-    type: 'string' | 'number' | 'boolean';
-    label: string;
-    required: boolean;
-    sensitive?: boolean;
-    description?: string;
-  }>;
-  requiredFields: string[];
 }
 
 export function useApi() {
@@ -198,70 +220,70 @@ export function useApi() {
     return request('PUT', '/config', data);
   }
 
-  // ============ SendKey APIs ============
+  // ============ Channel APIs ============
 
-  async function getSendKeys(): Promise<ApiResponse<SendKeyData[]>> {
-    return request('GET', '/sendkeys');
+  async function getChannels(): Promise<ApiResponse<ChannelData[]>> {
+    return request('GET', '/channels');
   }
 
-  async function getSendKey(id: string): Promise<ApiResponse<SendKeyData>> {
-    return request('GET', `/sendkeys/${id}`);
+  async function getChannel(id: string): Promise<ApiResponse<ChannelData>> {
+    return request('GET', `/channels/${id}`);
   }
 
-  async function createSendKey(data: { name: string }): Promise<ApiResponse<SendKeyData>> {
-    return request('POST', '/sendkeys', data);
+  async function createChannel(data: CreateChannelInput): Promise<ApiResponse<ChannelData>> {
+    return request('POST', '/channels', data);
   }
 
-  async function updateSendKey(id: string, data: { name?: string; openIdRef?: string | null }): Promise<ApiResponse<SendKeyData>> {
-    return request('PUT', `/sendkeys/${id}`, data);
+  async function updateChannel(id: string, data: UpdateChannelInput): Promise<ApiResponse<ChannelData>> {
+    return request('PUT', `/channels/${id}`, data);
   }
 
-  async function deleteSendKey(id: string): Promise<ApiResponse<void>> {
-    return request('DELETE', `/sendkeys/${id}`);
+  async function deleteChannel(id: string): Promise<ApiResponse<void>> {
+    return request('DELETE', `/channels/${id}`);
   }
 
-  async function unbindSendKey(id: string): Promise<ApiResponse<SendKeyData>> {
-    return request('POST', `/sendkeys/${id}/unbind`);
+  // ============ App APIs ============
+
+  async function getApps(): Promise<ApiResponse<AppData[]>> {
+    return request('GET', '/apps');
   }
 
-  // ============ Topic APIs ============
-
-  async function getTopics(): Promise<ApiResponse<TopicData[]>> {
-    return request('GET', '/topics');
+  async function getApp(id: string): Promise<ApiResponse<AppData>> {
+    return request('GET', `/apps/${id}`);
   }
 
-  async function getTopic(id: string): Promise<ApiResponse<TopicData>> {
-    return request('GET', `/topics/${id}`);
+  async function createApp(data: CreateAppInput): Promise<ApiResponse<AppData>> {
+    return request('POST', '/apps', data);
   }
 
-  async function createTopic(data: { name: string }): Promise<ApiResponse<TopicData>> {
-    return request('POST', '/topics', data);
+  async function updateApp(id: string, data: UpdateAppInput): Promise<ApiResponse<AppData>> {
+    return request('PUT', `/apps/${id}`, data);
   }
 
-  async function updateTopic(id: string, data: { name?: string }): Promise<ApiResponse<TopicData>> {
-    return request('PUT', `/topics/${id}`, data);
+  async function deleteApp(id: string): Promise<ApiResponse<void>> {
+    return request('DELETE', `/apps/${id}`);
   }
 
-  async function deleteTopic(id: string): Promise<ApiResponse<void>> {
-    return request('DELETE', `/topics/${id}`);
+  // ============ OpenID APIs (nested under apps) ============
+
+  async function getAppOpenIds(appId: string): Promise<ApiResponse<OpenIdData[]>> {
+    return request('GET', `/apps/${appId}/openids`);
   }
 
-  async function unsubscribeTopic(topicId: string, openIdRef: string): Promise<ApiResponse<void>> {
-    return request('DELETE', `/topics/${topicId}/subscribe/${openIdRef}`);
+  async function getAppOpenId(appId: string, openIdId: string): Promise<ApiResponse<OpenIdData>> {
+    return request('GET', `/apps/${appId}/openids/${openIdId}`);
   }
 
-  async function getTopicSubscribers(topicId: string): Promise<ApiResponse<string[]>> {
-    return request('GET', `/topics/${topicId}/subscribers`);
+  async function createAppOpenId(appId: string, data: CreateOpenIdInput): Promise<ApiResponse<OpenIdData>> {
+    return request('POST', `/apps/${appId}/openids`, data);
   }
 
-  // ============ OpenID APIs ============
-
-  async function getOpenIds(): Promise<ApiResponse<OpenIdData[]>> {
-    return request('GET', '/openids');
+  async function updateAppOpenId(appId: string, openIdId: string, data: UpdateOpenIdInput): Promise<ApiResponse<OpenIdData>> {
+    return request('PUT', `/apps/${appId}/openids/${openIdId}`, data);
   }
 
-  async function deleteOpenId(id: string): Promise<ApiResponse<void>> {
-    return request('DELETE', `/openids/${id}`);
+  async function deleteAppOpenId(appId: string, openIdId: string): Promise<ApiResponse<void>> {
+    return request('DELETE', `/apps/${appId}/openids/${openIdId}`);
   }
 
   // ============ Message APIs ============
@@ -269,24 +291,18 @@ export function useApi() {
   async function getMessages(params?: {
     page?: number;
     pageSize?: number;
-    type?: 'single' | 'topic';
+    appId?: string;
   }): Promise<ApiResponse<MessageData[]> & { pagination?: { total: number; page: number; pageSize: number } }> {
     const query = new URLSearchParams();
     if (params?.page) query.set('page', String(params.page));
     if (params?.pageSize) query.set('pageSize', String(params.pageSize));
-    if (params?.type) query.set('type', params.type);
+    if (params?.appId) query.set('appId', params.appId);
     const queryStr = query.toString();
     return request('GET', `/messages${queryStr ? `?${queryStr}` : ''}`);
   }
 
   async function getMessage(id: string): Promise<ApiResponse<MessageData>> {
     return request('GET', `/messages/${id}`);
-  }
-
-  // ============ Channel Type APIs ============
-
-  async function getChannelTypes(): Promise<ApiResponse<ChannelTypeInfo[]>> {
-    return request('GET', '/channels/types', undefined, false);
   }
 
   return {
@@ -299,28 +315,26 @@ export function useApi() {
     // Config
     getConfig,
     updateConfig,
-    // SendKeys
-    getSendKeys,
-    getSendKey,
-    createSendKey,
-    updateSendKey,
-    deleteSendKey,
-    unbindSendKey,
-    // Topics
-    getTopics,
-    getTopic,
-    createTopic,
-    updateTopic,
-    deleteTopic,
-    unsubscribeTopic,
-    getTopicSubscribers,
-    // OpenIDs
-    getOpenIds,
-    deleteOpenId,
+    // Channels
+    getChannels,
+    getChannel,
+    createChannel,
+    updateChannel,
+    deleteChannel,
+    // Apps
+    getApps,
+    getApp,
+    createApp,
+    updateApp,
+    deleteApp,
+    // OpenIDs (nested under apps)
+    getAppOpenIds,
+    getAppOpenId,
+    createAppOpenId,
+    updateAppOpenId,
+    deleteAppOpenId,
     // Messages
     getMessages,
     getMessage,
-    // Channel Types
-    getChannelTypes,
   };
 }

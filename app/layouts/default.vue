@@ -15,13 +15,13 @@
           <template #icon><Icon icon="mdi:view-dashboard" /></template>
           仪表盘
         </t-menu-item>
-        <t-menu-item value="/sendkeys">
-          <template #icon><Icon icon="mdi:key" /></template>
-          SendKey 管理
+        <t-menu-item value="/channels">
+          <template #icon><Icon icon="mdi:broadcast" /></template>
+          渠道管理
         </t-menu-item>
-        <t-menu-item value="/topics">
-          <template #icon><Icon icon="mdi:account-group" /></template>
-          Topic 管理
+        <t-menu-item value="/apps">
+          <template #icon><Icon icon="mdi:application" /></template>
+          应用管理
         </t-menu-item>
         <t-menu-item value="/messages">
           <template #icon><Icon icon="mdi:message-text" /></template>
@@ -78,15 +78,15 @@ const currentRoute = computed(() => route.path);
 const pageTitle = computed(() => {
   const titles: Record<string, string> = {
     '/': '仪表盘',
-    '/sendkeys': 'SendKey 管理',
-    '/topics': 'Topic 管理',
+    '/channels': '渠道管理',
+    '/apps': '应用管理',
     '/messages': '消息历史',
     '/settings': '设置',
   };
   
   // Handle dynamic routes
-  if (route.path.startsWith('/sendkeys/')) return 'SendKey 详情';
-  if (route.path.startsWith('/topics/')) return 'Topic 详情';
+  if (route.path.startsWith('/channels/')) return '渠道详情';
+  if (route.path.startsWith('/apps/')) return '应用详情';
   
   return titles[route.path] || 'Webhook Pusher';
 });

@@ -42,19 +42,17 @@ async function fetchTopic() {
 
 // Fetch subscriber details
 async function fetchSubscribers() {
-  if (!topic.value?.subscriberRefs?.length) {
+  if (!topic.value) {
     subscribers.value = [];
     return;
   }
   
   try {
-    // Get all OpenIDs and filter by subscriberRefs
-    const openIdsRes = await api.getOpenIds();
-    if (openIdsRes.data) {
-      const openIdMap = new Map(openIdsRes.data.map((o: any) => [o.id, o]));
-      subscribers.value = topic.value.subscriberRefs
-        .map((ref: string) => openIdMap.get(ref))
-        .filter(Boolean);
+    const res = await api.getTopicSubscribers(id.value);
+    if (res.code === 0 && res.data) {
+      subscribers.value = res.data;
+    } else {
+      subscribers.value = [];
     }
   } catch (e) {
     console.error('Failed to fetch subscribers:', e);
@@ -268,19 +266,18 @@ onMounted(() => {
               <h4>使用示例</h4>
               <t-tabs default-value="curl">
                 <t-tab-panel value="curl" label="cURL">
-                  <pre><code>curl -X POST "{{ getWebhookUrl() }}" \
-  -H "Content-Type: application/json" \
-  -d '{"title": "群发消息", "content": "这是群发内容"}'</code></pre>
+                  <pre><code>curl "{{ getWebhookUrl() }}?title=群发消息&amp;desp=这是群发内容"</code></pre>
                 </t-tab-panel>
                 <t-tab-panel value="js" label="JavaScript">
-                  <pre><code>fetch("{{ getWebhookUrl() }}", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    title: "群发消息",
-    content: "这是群发内容"
-  })
-});</code></pre>
+                  <pre><code>const params = new URLSearchParams({
+  title: "群发消息",
+  desp: "这是群发内容"
+});
+fetch(`{{ getWebhookUrl() }}?${params}`);</code></pre>
+                </t-tab-panel>
+                <t-tab-panel value="browser" label="浏览器">
+                  <p class="browser-tip">直接在浏览器地址栏访问：</p>
+                  <pre><code>{{ getWebhookUrl() }}?title=群发消息&amp;desp=这是群发内容</code></pre>
                 </t-tab-panel>
               </t-tabs>
             </div>
@@ -471,6 +468,12 @@ onMounted(() => {
 .usage-example code {
   font-size: 13px;
   line-height: 1.5;
+}
+
+.browser-tip {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--td-text-color-secondary);
 }
 
 @media (max-width: 768px) {

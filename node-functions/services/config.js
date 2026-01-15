@@ -52,6 +52,7 @@ class ConfigService {
 
   /**
    * Update application configuration (excludes adminToken)
+   * Admin Token is immutable after initialization - this is a security requirement.
    * @param {Partial<import('../shared/types.js').AppConfig>} updates
    * @returns {Promise<import('../shared/types.js').AppConfig>}
    */
@@ -61,8 +62,14 @@ class ConfigService {
       throw new Error('Configuration not initialized');
     }
 
-    // Prevent updating adminToken
+    // SECURITY: Prevent updating adminToken - it is immutable after initialization
+    // This ensures Property 1: Admin Token Immutability
     const { adminToken, createdAt, ...allowedUpdates } = updates;
+    
+    // Log warning if someone tries to update adminToken
+    if (updates.adminToken !== undefined) {
+      console.warn('Attempted to update adminToken - this is not allowed');
+    }
 
     const updatedConfig = {
       ...config,

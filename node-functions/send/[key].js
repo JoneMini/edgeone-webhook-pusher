@@ -1,15 +1,103 @@
 /**
- * Webhook-style Single Push Route
- * Feature: multi-tenant-refactor
+ * Webhook Push Route
+ * Feature: system-restructure
  *
- * URL: /:sendKey.send
- * Method: GET only
- * Query params: title (required), desp (optional)
+ * URL: /{appKey}.send
+ * Methods: GET, POST
+ * 
+ * GET: Query params - title (required), desp (optional)
+ * POST: JSON body - { title, desp, data }
  *
- * No authentication required - only validates SendKey existence
+ * No authentication required - validates App Key existence
+ */
+
+/**
+ * @swagger
+ * /{appKey}.send:
+ *   parameters:
+ *     - name: appKey
+ *       in: path
+ *       required: true
+ *       schema:
+ *         type: string
+ *       description: 应用 Key (APK...)
+ *   get:
+ *     tags: [Webhook]
+ *     summary: 发送消息 (GET)
+ *     description: 通过 URL 参数发送消息
+ *     parameters:
+ *       - name: title
+ *         in: query
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 消息标题
+ *       - name: desp
+ *         in: query
+ *         schema:
+ *           type: string
+ *         description: 消息内容
+ *     responses:
+ *       200:
+ *         description: 发送成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 0
+ *                 data:
+ *                   $ref: '#/components/schemas/PushResult'
+ *       400:
+ *         description: 参数错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: 应用不存在
+ *   post:
+ *     tags: [Webhook]
+ *     summary: 发送消息 (POST)
+ *     description: 通过 JSON Body 发送消息
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *             properties:
+ *               title:
+ *                 type: string
+ *                 description: 消息标题
+ *               desp:
+ *                 type: string
+ *                 description: 消息内容
+ *     responses:
+ *       200:
+ *         description: 发送成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 0
+ *                 data:
+ *                   $ref: '#/components/schemas/PushResult'
+ *       400:
+ *         description: 参数错误
+ *       404:
+ *         description: 应用不存在
  */
 
 import { pushService } from '../modules/push/service.js';
+import { setKVBaseUrl } from '../shared/kv-client.js';
 import { ErrorCodes, ErrorMessages } from '../shared/types.js';
 
 /**
@@ -48,19 +136,19 @@ function successResponse(data) {
 }
 
 /**
- * Extract SendKey from URL path
- * Supports: /SCTxxx.send or /send/SCTxxx
+ * Extract App Key from URL path
+ * Supports: /APKxxx.send or /send/APKxxx
  * @param {string} pathname
  * @returns {string|null}
  */
-function extractSendKey(pathname) {
-  // Pattern: /:sendKey.send
+function extractAppKey(pathname) {
+  // Pattern: /:appKey.send
   const dotMatch = pathname.match(/\/([^/]+)\.send$/);
   if (dotMatch) {
     return dotMatch[1];
   }
 
-  // Pattern: /send/:sendKey
+  // Pattern: /send/:appKey
   const slashMatch = pathname.match(/\/send\/([^/]+)/);
   if (slashMatch) {
     return slashMatch[1];
@@ -70,23 +158,68 @@ function extractSendKey(pathname) {
 }
 
 /**
- * Map error code to HTTP status
+ * Parse message from request
+ * @param {Request} request
+ * @param {URL} url
+ * @returns {Promise<{ title?: string, desp?: string, data?: object }>}
  */
-function getHttpStatus(errorCode) {
-  switch (errorCode) {
-    case ErrorCodes.KEY_NOT_FOUND:
-      return 404;
-    case ErrorCodes.RATE_LIMIT_EXCEEDED:
-      return 429;
-    case ErrorCodes.MISSING_TITLE:
-    case ErrorCodes.INVALID_PARAM:
-      return 400;
-    case ErrorCodes.INVALID_CONFIG:
-    case ErrorCodes.OPENID_NOT_FOUND:
-      return 500;
-    default:
-      return 500;
+async function parseMessage(request, url) {
+  if (request.method === 'GET') {
+    // GET: 从 query params 获取
+    return {
+      title: url.searchParams.get('title'),
+      desp: url.searchParams.get('desp'),
+    };
   }
+
+  if (request.method === 'POST') {
+    // POST: 从 JSON body 获取
+    try {
+      const contentType = request.headers.get('content-type') || '';
+      
+      if (contentType.includes('application/json')) {
+        const body = await request.json();
+        return {
+          title: body.title,
+          desp: body.desp,
+          data: body.data,
+        };
+      }
+      
+      // 支持 form-urlencoded
+      if (contentType.includes('application/x-www-form-urlencoded')) {
+        const text = await request.text();
+        const params = new URLSearchParams(text);
+        return {
+          title: params.get('title'),
+          desp: params.get('desp'),
+        };
+      }
+
+      // 默认尝试解析为 JSON
+      const body = await request.json();
+      return {
+        title: body.title,
+        desp: body.desp,
+        data: body.data,
+      };
+    } catch (e) {
+      return {};
+    }
+  }
+
+  return {};
+}
+
+/**
+ * Map error message to HTTP status
+ */
+function getHttpStatus(errorMsg) {
+  if (errorMsg === 'App not found') return 404;
+  if (errorMsg === 'No OpenIDs bound to this app') return 400;
+  if (errorMsg === 'Channel not found') return 500;
+  if (errorMsg === 'Failed to get access token') return 500;
+  return 500;
 }
 
 /**
@@ -97,54 +230,54 @@ export async function onRequest(context) {
   const url = new URL(request.url);
   const pathname = url.pathname;
 
+  // Set KV base URL from request context
+  setKVBaseUrl(url.origin);
+
   // Handle CORS preflight
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
       },
     });
   }
 
-  // Only allow GET
-  if (request.method !== 'GET') {
-    return errorResponse(405, ErrorCodes.INVALID_PARAM, 'Method not allowed. Use GET with query params.');
+  // Only allow GET and POST
+  if (request.method !== 'GET' && request.method !== 'POST') {
+    return errorResponse(405, ErrorCodes.INVALID_PARAM, 'Method not allowed. Use GET or POST.');
   }
 
-  // Extract SendKey from URL
-  const sendKey = extractSendKey(pathname);
-  if (!sendKey) {
+  // Extract App Key from URL
+  const appKey = extractAppKey(pathname);
+  if (!appKey) {
     return errorResponse(400, ErrorCodes.INVALID_PARAM, 'Invalid URL format');
   }
 
-  // Get parameters from query string
-  const title = url.searchParams.get('title');
-  const desp = url.searchParams.get('desp');
+  // Parse message from request
+  const message = await parseMessage(request, url);
 
   // Validate title
-  if (!title) {
-    return errorResponse(400, ErrorCodes.MISSING_TITLE);
+  if (!message.title) {
+    return errorResponse(400, ErrorCodes.MISSING_TITLE, 'Missing required field: title');
   }
 
   // Push message
   try {
-    const result = await pushService.pushBySendKey(sendKey, title, desp);
+    const result = await pushService.push(appKey, message);
 
-    if (!result.success) {
-      return errorResponse(getHttpStatus(result.error), result.error);
+    if (result.error) {
+      return errorResponse(getHttpStatus(result.error), ErrorCodes.INTERNAL_ERROR, result.error);
     }
 
     return successResponse({
       pushId: result.pushId,
-      results: [
-        {
-          success: result.success,
-          msgId: result.msgId,
-        },
-      ],
+      total: result.total,
+      success: result.success,
+      failed: result.failed,
+      results: result.results,
     });
   } catch (error) {
     console.error('Push error:', error);

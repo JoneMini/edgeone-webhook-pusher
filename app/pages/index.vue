@@ -5,19 +5,19 @@
       <t-col :xs="24" :sm="8">
         <t-card :bordered="false" class="stat-card">
           <div class="stat-content">
-            <div class="stat-icon sendkey">
-              <Icon icon="mdi:key" />
+            <div class="stat-icon channel">
+              <Icon icon="mdi:broadcast" />
             </div>
             <div class="stat-info">
-              <div class="stat-value">{{ stats.sendKeyCount }}</div>
-              <div class="stat-label">SendKey</div>
+              <div class="stat-value">{{ stats.channelCount }}</div>
+              <div class="stat-label">渠道</div>
             </div>
           </div>
           <t-button
             theme="primary"
             variant="text"
             class="stat-action"
-            @click="router.push('/sendkeys')"
+            @click="router.push('/channels')"
           >
             管理 <Icon icon="mdi:arrow-right" />
           </t-button>
@@ -27,19 +27,19 @@
       <t-col :xs="24" :sm="8">
         <t-card :bordered="false" class="stat-card">
           <div class="stat-content">
-            <div class="stat-icon topic">
-              <Icon icon="mdi:account-group" />
+            <div class="stat-icon app">
+              <Icon icon="mdi:application" />
             </div>
             <div class="stat-info">
-              <div class="stat-value">{{ stats.topicCount }}</div>
-              <div class="stat-label">Topic</div>
+              <div class="stat-value">{{ stats.appCount }}</div>
+              <div class="stat-label">应用</div>
             </div>
           </div>
           <t-button
             theme="primary"
             variant="text"
             class="stat-action"
-            @click="router.push('/topics')"
+            @click="router.push('/apps')"
           >
             管理 <Icon icon="mdi:arrow-right" />
           </t-button>
@@ -72,17 +72,17 @@
       <t-col :span="24">
         <t-card title="快捷操作" :bordered="false">
           <t-space>
-            <t-button theme="primary" @click="router.push('/sendkeys?action=create')">
+            <t-button theme="primary" @click="router.push('/channels')">
               <template #icon><Icon icon="mdi:plus" /></template>
-              新建 SendKey
+              新建渠道
             </t-button>
-            <t-button theme="default" @click="router.push('/topics?action=create')">
+            <t-button theme="default" @click="router.push('/apps')">
               <template #icon><Icon icon="mdi:plus" /></template>
-              新建 Topic
+              新建应用
             </t-button>
             <t-button theme="default" variant="outline" @click="router.push('/settings')">
               <template #icon><Icon icon="mdi:cog" /></template>
-              渠道配置
+              系统设置
             </t-button>
           </t-space>
         </t-card>
@@ -113,11 +113,6 @@
               hover
               size="small"
             >
-              <template #type="{ row }">
-                <t-tag :theme="row.type === 'single' ? 'primary' : 'warning'" variant="light" size="small">
-                  {{ row.type === 'single' ? '单发' : '群发' }}
-                </t-tag>
-              </template>
               <template #success="{ row }">
                 <t-tag :theme="row.success ? 'success' : 'danger'" variant="light" size="small">
                   <Icon :icon="row.success ? 'mdi:check' : 'mdi:close'" />
@@ -138,21 +133,25 @@
 
 <script setup lang="ts">
 import type { StatsData } from '~/composables/useApi';
+import { Icon } from '@iconify/vue';
+
+definePageMeta({
+  layout: 'default',
+});
 
 const api = useApi();
 const router = useRouter();
 
 const loading = ref(true);
 const stats = ref<StatsData>({
-  sendKeyCount: 0,
-  topicCount: 0,
+  channelCount: 0,
+  appCount: 0,
   messageCount: 0,
   recentMessages: [],
 });
 
 const messageColumns = [
   { colKey: 'title', title: '标题', ellipsis: true },
-  { colKey: 'type', title: '类型', width: 80, cell: 'type' },
   { colKey: 'success', title: '状态', width: 80, cell: 'success' },
   { colKey: 'createdAt', title: '时间', width: 160, cell: 'createdAt' },
 ];
@@ -196,19 +195,19 @@ onMounted(async () => {
   font-size: 28px;
 }
 
-.stat-icon.sendkey {
+.stat-icon.channel {
+  background: rgba(7, 193, 96, 0.1);
+  color: #07c160;
+}
+
+.stat-icon.app {
   background: rgba(0, 82, 217, 0.1);
   color: #0052d9;
 }
 
-.stat-icon.topic {
+.stat-icon.message {
   background: rgba(237, 123, 47, 0.1);
   color: #ed7b2f;
-}
-
-.stat-icon.message {
-  background: rgba(0, 168, 112, 0.1);
-  color: #00a870;
 }
 
 .stat-info {
