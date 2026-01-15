@@ -20,22 +20,22 @@
   "scripts": {
     "dev": "nuxt dev",
     "dev:edgeone": "edgeone pages dev",
-    "build": "nuxt generate",
+    "build": "yarn generate:openapi && nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "test": "vitest run",
     "test:watch": "vitest",
     "clean": "rimraf dist .nuxt .output",
-    "docs:generate": "node scripts/generate-openapi.js",
-    "docs": "npm run docs:generate && npx @redocly/cli build-docs docs/openapi.json -o docs/api.html && open docs/api.html"
+    "typecheck": "tsc -p node-functions/tsconfig.json --noEmit",
+    "generate:openapi": "tsx scripts/generate-openapi.ts"
   },
   "dependencies": {
     "@iconify/vue": "^5.0.0",
     "@koa/router": "^15.2.0",
     "@pinia/nuxt": "^0.9.0",
+    "@sinclair/typebox": "^0.34.47",
     "koa": "^3.1.1",
     "koa-bodyparser": "^4.4.1",
-    "koa-swagger-decorator": "^1.8.7",
     "nuxt": "^4.2.2",
     "pinia": "^2.3.1",
     "qrcode": "^1.5.4",
@@ -44,12 +44,17 @@
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@types/koa": "^2.15.0",
+    "@types/koa-bodyparser": "^4.3.12",
+    "@types/koa__router": "^12.0.4",
     "@types/node": "^25.0.6",
     "@types/qrcode": "^1.5.6",
     "edgeone": "^1.2.22",
     "fast-check": "^4.5.3",
     "rimraf": "^6.0.1",
-    "swagger-jsdoc": "^6.2.8",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.3",
     "unplugin-auto-import": "^19.2.0",
     "unplugin-vue-components": "^28.5.0",
     "vitest": "^4.0.17"

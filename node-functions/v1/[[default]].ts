@@ -1,26 +1,44 @@
 /**
- * EdgeOne Node Functions - TypeScript + Koa 验证示例
+ * EdgeOne Node Functions - TypeScript + Koa
+ * Route: /v1/*
  * 
- * 验证目标：
- * 1. TypeScript 文件能否被 EdgeOne Pages 正确处理
- * 2. Koa 应用能否正常导出和运行
- * 3. 类型定义是否正常工作
+ * OpenAPI 文档通过编译时脚本生成到 public/openapi.json
+ * 前端可直接读取静态文件渲染
  */
 
 import Koa from 'koa';
 import Router from '@koa/router';
+// @ts-ignore - koa-bodyparser types are not fully compatible
 import bodyParser from 'koa-bodyparser';
-import type { ApiResponse, TestItem, ErrorCode } from './types/index.js';
 
-// 创建 Koa 应用
+// 扩展 Koa Context 类型以支持 body
+interface RequestWithBody {
+  body?: Record<string, unknown>;
+}
+
+// ============ 类型定义 ============
+
+interface ApiResponse<T = unknown> {
+  code: number;
+  message?: string;
+  data: T;
+}
+
+interface TestItem {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+// ============ 创建 Koa 应用 ============
+
 const app = new Koa();
-const router = new Router();
 
 // CORS 中间件
 app.use(async (ctx, next) => {
   ctx.set('Access-Control-Allow-Origin', '*');
   ctx.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  ctx.set('Access-Control-Allow-Headers', 'Content-Type');
+  ctx.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Token');
   
   if (ctx.method === 'OPTIONS') {
     ctx.status = 204;
@@ -48,17 +66,36 @@ app.use(async (ctx, next) => {
   }
 });
 
+// 响应包装中间件
+app.use(async (ctx, next) => {
+  await next();
+  
+  // 如果响应体已经是标准格式，不再包装
+  if (ctx.body && typeof ctx.body === 'object' && 'code' in ctx.body) {
+    return;
+  }
+  
+  // 包装成功响应
+  if (ctx.body !== undefined) {
+    ctx.body = {
+      code: 0,
+      message: 'success',
+      data: ctx.body,
+    };
+  }
+});
+
+// ============ 路由定义 ============
+
+const router = new Router();
+
 // 健康检查
 router.get('/health', async (ctx) => {
-  const response: ApiResponse<{ status: string; timestamp: string; runtime: string }> = {
-    code: 0,
-    data: {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      runtime: 'TypeScript + Koa',
-    },
+  ctx.body = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    runtime: 'TypeScript + Koa',
   };
-  ctx.body = response;
 });
 
 // 获取列表
@@ -67,19 +104,14 @@ router.get('/items', async (ctx) => {
     { id: '1', name: 'Item 1', createdAt: new Date().toISOString() },
     { id: '2', name: 'Item 2', createdAt: new Date().toISOString() },
   ];
-  
-  const response: ApiResponse<TestItem[]> = {
-    code: 0,
-    data: items,
-  };
-  ctx.body = response;
+  ctx.body = items;
 });
 
 // 创建项目
 router.post('/items', async (ctx) => {
-  const body = ctx.request.body as { name?: string };
+  const body = (ctx.request as unknown as RequestWithBody).body as { name?: string } | undefined;
   
-  if (!body.name) {
+  if (!body?.name) {
     ctx.status = 400;
     ctx.body = {
       code: 40001,
@@ -96,25 +128,20 @@ router.post('/items', async (ctx) => {
   };
   
   ctx.status = 201;
-  ctx.body = {
-    code: 0,
-    message: 'Created',
-    data: item,
-  } as ApiResponse<TestItem>;
+  ctx.body = item;
 });
 
 // 获取单个项目
 router.get('/items/:id', async (ctx) => {
   const { id } = ctx.params;
   
-  // 模拟数据
   if (id === '1' || id === '2') {
     const item: TestItem = {
       id,
       name: `Item ${id}`,
       createdAt: new Date().toISOString(),
     };
-    ctx.body = { code: 0, data: item } as ApiResponse<TestItem>;
+    ctx.body = item;
   } else {
     ctx.status = 404;
     ctx.body = {
