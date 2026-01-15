@@ -25,7 +25,8 @@
     "postinstall": "nuxt prepare",
     "test": "vitest run",
     "test:watch": "vitest",
-    "clean": "rimraf dist .nuxt .output"
+    "clean": "rimraf dist .nuxt .output",
+    "docs": "npx @redocly/cli build-docs docs/openapi.yaml -o docs/api.html && open docs/api.html"
   },
   "dependencies": {
     "@iconify/vue": "^5.0.0",

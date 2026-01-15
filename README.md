@@ -193,7 +193,7 @@ yarn test
 
 访问 `http://localhost:8088` 进行调试。
 
-详细说明参见 [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md)
+详细说明参见 [LOCAL_DEVELOPMENT.md](./docs/LOCAL_DEVELOPMENT.md)
 
 ### 部署
 
@@ -239,12 +239,12 @@ curl "https://your-domain.com/{topicKey}.topic?title=系统公告&desp=今晚22�
 
 ## API 参考
 
-### 推送 API（无需鉴权）
+### 推送 API（无需鉴权，仅支持 GET）
 
 | 方法 | 路径 | 描述 |
 |------|------|------|
-| GET/POST | `/{sendKey}.send?title=xxx&desp=xxx` | 单发推送 |
-| GET/POST | `/{topicKey}.topic?title=xxx&desp=xxx` | 群发推送 |
+| GET | `/{sendKey}.send?title=xxx&desp=xxx` | 单发推送 |
+| GET | `/{topicKey}.topic?title=xxx&desp=xxx` | 群发推送 |
 
 ### 绑定/订阅 API（无需鉴权，OAuth 流程）
 

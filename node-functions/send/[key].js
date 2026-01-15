@@ -3,7 +3,7 @@
  * Feature: multi-tenant-refactor
  *
  * URL: /:sendKey.send
- * Methods: GET, POST
+ * Method: GET only
  * Query params: title (required), desp (optional)
  *
  * No authentication required - only validates SendKey existence
@@ -70,45 +70,6 @@ function extractSendKey(pathname) {
 }
 
 /**
- * Get parameters from request (URL params or body)
- * @param {Request} request
- * @returns {Promise<{ title?: string, desp?: string }>}
- */
-async function getParams(request) {
-  const url = new URL(request.url);
-  const params = {
-    title: url.searchParams.get('title'),
-    desp: url.searchParams.get('desp'),
-  };
-
-  // For POST requests, also check body
-  if (request.method === 'POST') {
-    const contentType = request.headers.get('content-type') || '';
-
-    if (contentType.includes('application/json')) {
-      try {
-        const body = await request.json();
-        params.title = params.title || body.title;
-        params.desp = params.desp || body.desp || body.content;
-      } catch {
-        // Ignore JSON parse errors
-      }
-    } else if (contentType.includes('application/x-www-form-urlencoded')) {
-      try {
-        const text = await request.text();
-        const formData = new URLSearchParams(text);
-        params.title = params.title || formData.get('title');
-        params.desp = params.desp || formData.get('desp');
-      } catch {
-        // Ignore form parse errors
-      }
-    }
-  }
-
-  return params;
-}
-
-/**
  * Map error code to HTTP status
  */
 function getHttpStatus(errorCode) {
@@ -142,15 +103,15 @@ export async function onRequest(context) {
       status: 204,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
       },
     });
   }
 
-  // Only allow GET and POST
-  if (request.method !== 'GET' && request.method !== 'POST') {
-    return errorResponse(405, ErrorCodes.INVALID_PARAM, 'Method not allowed');
+  // Only allow GET
+  if (request.method !== 'GET') {
+    return errorResponse(405, ErrorCodes.INVALID_PARAM, 'Method not allowed. Use GET with query params.');
   }
 
   // Extract SendKey from URL
@@ -159,17 +120,18 @@ export async function onRequest(context) {
     return errorResponse(400, ErrorCodes.INVALID_PARAM, 'Invalid URL format');
   }
 
-  // Get parameters
-  const params = await getParams(request);
+  // Get parameters from query string
+  const title = url.searchParams.get('title');
+  const desp = url.searchParams.get('desp');
 
   // Validate title
-  if (!params.title) {
+  if (!title) {
     return errorResponse(400, ErrorCodes.MISSING_TITLE);
   }
 
   // Push message
   try {
-    const result = await pushService.pushBySendKey(sendKey, params.title, params.desp);
+    const result = await pushService.pushBySendKey(sendKey, title, desp);
 
     if (!result.success) {
       return errorResponse(getHttpStatus(result.error), result.error);
