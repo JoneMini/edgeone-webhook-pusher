@@ -1,13 +1,8 @@
 /**
  * App Management API Routes
  * 
- * GET /apps - 获取应用列表
- * POST /apps - 创建应用
- * GET /apps/:id - 获取应用详情
- * PUT /apps/:id - 更新应用
- * DELETE /apps/:id - 删除应用
- * 
- * 所有路由需要 Admin Token 认证
+ * @tag Apps
+ * @description 应用管理 API，用于管理业务应用及其推送配置
  */
 
 import Router from '@koa/router';
@@ -23,7 +18,11 @@ const router = new Router({ prefix: '/apps' });
 router.use(adminAuth);
 
 /**
- * GET /apps - 获取应用列表
+ * 获取应用列表
+ * @tag Apps
+ * @summary 获取所有应用
+ * @description 返回系统中所有应用的列表，包含每个应用绑定的 OpenID 数量
+ * @returns {App[]} 应用列表
  */
 router.get('/', async (ctx: AppContext) => {
   const apps = await appService.list();
@@ -40,7 +39,12 @@ router.get('/', async (ctx: AppContext) => {
 });
 
 /**
- * POST /apps - 创建应用
+ * 创建应用
+ * @tag Apps
+ * @summary 创建新应用
+ * @description 创建一个新的业务应用，需要关联已存在的渠道
+ * @param {CreateAppInput} body - 应用创建参数
+ * @returns {App} 创建的应用信息
  */
 router.post('/', async (ctx: AppContext) => {
   const body = ctx.request.body as CreateAppInput | undefined;
@@ -55,7 +59,12 @@ router.post('/', async (ctx: AppContext) => {
 });
 
 /**
- * GET /apps/:id - 获取应用详情
+ * 获取应用详情
+ * @tag Apps
+ * @summary 获取应用详情
+ * @description 根据 ID 获取单个应用的详细信息，包含 OpenID 数量
+ * @param {string} id - 应用 ID
+ * @returns {App} 应用详情
  */
 router.get('/:id', async (ctx: AppContext) => {
   const { id } = ctx.params;
@@ -71,7 +80,13 @@ router.get('/:id', async (ctx: AppContext) => {
 });
 
 /**
- * PUT /apps/:id - 更新应用
+ * 更新应用
+ * @tag Apps
+ * @summary 更新应用信息
+ * @description 更新指定应用的配置信息
+ * @param {string} id - 应用 ID
+ * @param {UpdateAppInput} body - 更新参数
+ * @returns {App} 更新后的应用信息
  */
 router.put('/:id', async (ctx: AppContext) => {
   const { id } = ctx.params;
@@ -86,7 +101,11 @@ router.put('/:id', async (ctx: AppContext) => {
 });
 
 /**
- * DELETE /apps/:id - 删除应用
+ * 删除应用
+ * @tag Apps
+ * @summary 删除应用
+ * @description 删除指定的应用。删除时会同时删除所有绑定的 OpenID
+ * @param {string} id - 应用 ID
  */
 router.delete('/:id', async (ctx: AppContext) => {
   const { id } = ctx.params;

@@ -1,7 +1,8 @@
 /**
  * Authentication API Routes
  * 
- * POST /auth/validate - 验证 Admin Token
+ * @tag Auth
+ * @description 认证 API，用于验证 Admin Token
  */
 
 import Router from '@koa/router';
@@ -12,7 +13,11 @@ import { ApiError } from '../types/index.js';
 const router = new Router({ prefix: '/auth' });
 
 /**
- * POST /auth/validate - 验证 Admin Token
+ * 验证 Token
+ * @tag Auth
+ * @summary 验证 Admin Token
+ * @description 验证提供的 Admin Token 是否有效
+ * @returns {object} 验证结果
  */
 router.post('/validate', async (ctx: AppContext) => {
   const authHeader = ctx.get('Authorization');

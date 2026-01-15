@@ -90,6 +90,7 @@ const pageTitle = computed(() => {
     '/channels': '渠道管理',
     '/apps': '应用管理',
     '/messages': '消息历史',
+    '/api-docs': 'API 文档',
     '/settings': '设置',
   };
   return titles[route.path] || 'Webhook Pusher';
@@ -121,6 +122,12 @@ const menuItems = computed(() => [
     active: route.path === '/messages',
   }],
   [{
+    label: 'API 文档',
+    icon: 'i-heroicons-book-open',
+    to: '/api-docs',
+    active: route.path === '/api-docs',
+  },
+  {
     label: '设置',
     icon: 'i-heroicons-cog-6-tooth',
     to: '/settings',

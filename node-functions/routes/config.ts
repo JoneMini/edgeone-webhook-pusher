@@ -1,10 +1,8 @@
 /**
  * Config Management API Routes
  * 
- * GET /config - 获取应用配置
- * PUT /config - 更新应用配置
- * 
- * 所有路由需要 Admin Token 认证
+ * @tag Config
+ * @description 系统配置 API，用于管理系统级配置
  */
 
 import Router from '@koa/router';
@@ -20,7 +18,11 @@ const router = new Router({ prefix: '/config' });
 router.use(adminAuth);
 
 /**
- * GET /config - 获取应用配置
+ * 获取系统配置
+ * @tag Config
+ * @summary 获取系统配置
+ * @description 获取当前系统配置，敏感信息已脱敏
+ * @returns {SystemConfig} 系统配置
  */
 router.get('/', async (ctx: AppContext) => {
   const config = await configService.getConfig();
@@ -33,7 +35,12 @@ router.get('/', async (ctx: AppContext) => {
 });
 
 /**
- * PUT /config - 更新应用配置
+ * 更新系统配置
+ * @tag Config
+ * @summary 更新系统配置
+ * @description 更新系统配置，如速率限制、数据保留策略等
+ * @param {object} body - 配置更新参数
+ * @returns {SystemConfig} 更新后的系统配置
  */
 router.put('/', async (ctx: AppContext) => {
   const updates = ctx.request.body as Partial<SystemConfig> | undefined;
