@@ -38,9 +38,16 @@ app.use(async (ctx, next) => {
 app.use(bodyParser());
 
 // 设置 KV baseUrl
+// Edge Functions 和 Node Functions 同源，但本地开发时端口不同
 app.use(async (ctx, next) => {
-  const protocol = ctx.get('x-forwarded-proto') || ctx.protocol;
-  const host = ctx.get('host');
+  const protocol = ctx.get('x-forwarded-proto') || ctx.protocol || 'http';
+  let host = ctx.get('host') || 'localhost:8088';
+  
+  // 本地开发时，Node Functions 内部端口是 9000，需要改为 8088
+  if (host.includes(':9000')) {
+    host = host.replace(':9000', ':8088');
+  }
+  
   const baseUrl = `${protocol}://${host}`;
   setKVBaseUrl(baseUrl);
   await next();

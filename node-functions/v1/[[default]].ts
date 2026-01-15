@@ -32,18 +32,19 @@ import { setKVBaseUrl } from '../shared/kv-client.js';
 const app = new Koa();
 
 // 设置 KV baseUrl 的中间件
+// Edge Functions 和 Node Functions 同源，但本地开发时端口不同
+// Node Functions 内部运行在 9000 端口，需要请求 8088 端口的 Edge Functions
 app.use(async (ctx, next) => {
-  // 优先使用环境变量（用于开发环境访问远程 KV）
-  const envKVBaseUrl = process.env.KV_BASE_URL;
-  if (envKVBaseUrl) {
-    setKVBaseUrl(envKVBaseUrl);
-  } else {
-    // 从请求中获取 baseUrl（生产环境）
-    const protocol = ctx.get('x-forwarded-proto') || ctx.protocol;
-    const host = ctx.get('host');
-    const baseUrl = `${protocol}://${host}`;
-    setKVBaseUrl(baseUrl);
+  const protocol = ctx.get('x-forwarded-proto') || ctx.protocol || 'http';
+  let host = ctx.get('host') || 'localhost:8088';
+  
+  // 本地开发时，Node Functions 内部端口是 9000，需要改为 8088
+  if (host.includes(':9000')) {
+    host = host.replace(':9000', ':8088');
   }
+  
+  const baseUrl = `${protocol}://${host}`;
+  setKVBaseUrl(baseUrl);
   await next();
 });
 

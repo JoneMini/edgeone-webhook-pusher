@@ -5,30 +5,27 @@
  * 架构说明：
  * Node Functions 无法直接访问 EdgeOne KV，需要通过 Edge Functions 代理
  * Edge Functions 位于 edge-functions/api/kv/ 目录
+ * 
+ * Edge Functions 和 Node Functions 同源，使用相对路径即可
+ * 本地开发时，EdgeOne CLI 会同时启动 Edge Functions 和 Node Functions
  */
 
 // Store for dynamic base URL (set from request context)
 let dynamicBaseUrl: string | null = null;
 
-// Environment variable for KV base URL (used in development)
-const envKVBaseUrl = typeof process !== 'undefined' && process.env ? process.env.KV_BASE_URL : undefined;
-
 /**
  * Set the base URL dynamically from request context
+ * 用于在请求上下文中设置 baseUrl
  */
 export function setKVBaseUrl(url: string): void {
   dynamicBaseUrl = url;
 }
 
 /**
- * Get the current base URL
- * Priority: environment variable > dynamic URL
+ * Get the base URL for KV API
+ * 使用请求上下文中的 baseUrl，确保同源访问
  */
 function getBaseUrl(): string {
-  // In development, prefer environment variable for remote KV access
-  if (envKVBaseUrl) {
-    return envKVBaseUrl;
-  }
   return dynamicBaseUrl || '';
 }
 
