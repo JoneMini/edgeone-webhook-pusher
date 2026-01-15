@@ -122,7 +122,8 @@ function createKVClient<T = unknown>(namespace: string): KVOperations<T> {
         const result = await this.list(prefix, 256, cursor);
         allKeys.push(...result.keys);
         complete = result.complete;
-        cursor = result.cursor;
+        // Only set cursor if it's a non-empty string
+        cursor = result.cursor && result.cursor.length > 0 ? result.cursor : undefined;
       }
 
       return allKeys;

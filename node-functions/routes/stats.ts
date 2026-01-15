@@ -1,9 +1,8 @@
 /**
  * Stats API Routes
  * 
- * GET /stats - 获取系统统计数据
- * 
- * 需要 Admin Token 认证
+ * @tag Stats
+ * @description 统计数据 API，用于获取系统概览统计
  */
 
 import Router from '@koa/router';
@@ -20,7 +19,11 @@ const router = new Router({ prefix: '/stats' });
 router.use(adminAuth);
 
 /**
- * GET /stats - 获取系统统计数据
+ * 获取统计数据
+ * @tag Stats
+ * @summary 获取系统统计数据
+ * @description 获取系统概览统计，包括渠道数、应用数、OpenID 数和消息数
+ * @returns {object} 统计数据
  */
 router.get('/', async (ctx: AppContext) => {
   const [channels, apps, messageStats] = await Promise.all([

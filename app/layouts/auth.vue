@@ -1,13 +1,5 @@
 <template>
-  <div class="auth-layout">
+  <div class="min-h-screen flex bg-default">
     <slot />
   </div>
 </template>
-
-<style scoped>
-.auth-layout {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-</style>

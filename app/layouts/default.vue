@@ -1,79 +1,88 @@
 <template>
-  <t-layout>
-    <t-aside :width="sidebarCollapsed ? '64px' : '220px'" class="sidebar">
-      <div class="logo" @click="sidebarCollapsed = !sidebarCollapsed">
-        <Icon icon="mdi:webhook" class="logo-icon" />
-        <span v-if="!sidebarCollapsed" class="logo-text">Webhook Pusher</span>
-      </div>
-      <t-menu
-        :value="currentRoute"
-        :collapsed="sidebarCollapsed"
-        theme="light"
-        @change="handleMenuChange"
-      >
-        <t-menu-item value="/">
-          <template #icon><Icon icon="mdi:view-dashboard" /></template>
-          仪表盘
-        </t-menu-item>
-        <t-menu-item value="/channels">
-          <template #icon><Icon icon="mdi:broadcast" /></template>
-          渠道管理
-        </t-menu-item>
-        <t-menu-item value="/apps">
-          <template #icon><Icon icon="mdi:application" /></template>
-          应用管理
-        </t-menu-item>
-        <t-menu-item value="/messages">
-          <template #icon><Icon icon="mdi:message-text" /></template>
-          消息历史
-        </t-menu-item>
-        <t-menu-item value="/settings">
-          <template #icon><Icon icon="mdi:cog" /></template>
-          设置
-        </t-menu-item>
-      </t-menu>
-    </t-aside>
-    <t-layout>
-      <t-header class="header">
-        <div class="header-content">
-          <t-button
-            theme="default"
-            variant="text"
-            class="collapse-btn"
-            @click="sidebarCollapsed = !sidebarCollapsed"
-          >
-            <Icon :icon="sidebarCollapsed ? 'mdi:menu' : 'mdi:menu-open'" />
-          </t-button>
-          <span class="page-title">{{ pageTitle }}</span>
-          <div class="header-actions">
-            <t-dropdown :options="userMenuOptions" @click="handleUserMenu">
-              <t-button theme="default" variant="text">
-                <Icon icon="mdi:account-circle" />
-                <span class="user-text">管理员</span>
-                <Icon icon="mdi:chevron-down" />
-              </t-button>
-            </t-dropdown>
-          </div>
+  <UDashboardGroup storage="local" storage-key="dashboard">
+    <UDashboardSidebar
+      id="sidebar"
+      v-model:collapsed="sidebarCollapsed"
+      :collapsible="true"
+      :min-size="12"
+      :max-size="20"
+      :default-size="15"
+      :collapsed-size="4"
+      class="border-r border-gray-200 dark:border-gray-800"
+    >
+      <template #header="{ collapsed }">
+        <div class="flex items-center gap-2 p-4 cursor-pointer" @click="sidebarCollapsed = !sidebarCollapsed">
+          <UIcon name="i-heroicons-bolt" class="text-2xl text-primary shrink-0" />
+          <span v-if="!collapsed" class="font-semibold text-sm truncate">Webhook Pusher</span>
         </div>
-      </t-header>
-      <t-content class="main-content">
+      </template>
+
+      <UNavigationMenu
+        :items="menuItems"
+        orientation="vertical"
+        :ui="{ link: 'px-3 py-2' }"
+      />
+
+      <template #footer="{ collapsed }">
+        <div class="p-2 space-y-2">
+          <!-- Color Mode Toggle -->
+          <UButton
+            variant="ghost"
+            class="w-full"
+            :class="collapsed ? 'justify-center' : 'justify-start'"
+            @click="toggleColorMode"
+          >
+            <UIcon :name="colorMode.value === 'dark' ? 'i-heroicons-sun' : 'i-heroicons-moon'" class="text-lg" />
+            <span v-if="!collapsed" class="ml-2">{{ colorMode.value === 'dark' ? '浅色模式' : '深色模式' }}</span>
+          </UButton>
+          
+          <!-- User Menu -->
+          <UDropdownMenu :items="userMenuItems">
+            <UButton
+              variant="ghost"
+              class="w-full"
+              :class="collapsed ? 'justify-center' : 'justify-start'"
+            >
+              <UIcon name="i-heroicons-user-circle" class="text-lg" />
+              <span v-if="!collapsed" class="ml-2">管理员</span>
+            </UButton>
+          </UDropdownMenu>
+        </div>
+      </template>
+    </UDashboardSidebar>
+
+    <div class="flex-1 flex flex-col min-w-0">
+      <!-- Mobile header -->
+      <header class="lg:hidden flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <UButton
+          variant="ghost"
+          icon="i-heroicons-bars-3"
+          @click="sidebarCollapsed = !sidebarCollapsed"
+        />
+        <span class="font-medium">{{ pageTitle }}</span>
+      </header>
+
+      <main class="flex-1 overflow-auto bg-gray-50 dark:bg-gray-950">
         <slot />
-      </t-content>
-    </t-layout>
-  </t-layout>
+      </main>
+    </div>
+  </UDashboardGroup>
 </template>
 
 <script setup lang="ts">
-import { Icon } from '@iconify/vue';
-import { MessagePlugin } from 'tdesign-vue-next';
 import { useAuthStore } from '~/stores/auth';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const toast = useToast();
+const colorMode = useColorMode();
 
 const sidebarCollapsed = ref(false);
-const currentRoute = computed(() => route.path);
+
+function toggleColorMode() {
+  colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark';
+}
 
 const pageTitle = computed(() => {
   const titles: Record<string, string> = {
@@ -81,116 +90,69 @@ const pageTitle = computed(() => {
     '/channels': '渠道管理',
     '/apps': '应用管理',
     '/messages': '消息历史',
+    '/api-docs': 'API 文档',
     '/settings': '设置',
   };
-  
-  // Handle dynamic routes
-  if (route.path.startsWith('/channels/')) return '渠道详情';
-  if (route.path.startsWith('/apps/')) return '应用详情';
-  
   return titles[route.path] || 'Webhook Pusher';
 });
 
-const userMenuOptions = [
-  { content: '退出登录', value: 'logout' },
-];
+const menuItems = computed(() => [
+  [{
+    label: '仪表盘',
+    icon: 'i-heroicons-home',
+    to: '/',
+    active: route.path === '/',
+  }],
+  [{
+    label: '渠道管理',
+    icon: 'i-heroicons-signal',
+    to: '/channels',
+    active: route.path === '/channels',
+  },
+  {
+    label: '应用管理',
+    icon: 'i-heroicons-cube',
+    to: '/apps',
+    active: route.path === '/apps',
+  },
+  {
+    label: '消息历史',
+    icon: 'i-heroicons-chat-bubble-left-right',
+    to: '/messages',
+    active: route.path === '/messages',
+  }],
+  [{
+    label: 'API 文档',
+    icon: 'i-heroicons-book-open',
+    to: '/api-docs',
+    active: route.path === '/api-docs',
+  },
+  {
+    label: '设置',
+    icon: 'i-heroicons-cog-6-tooth',
+    to: '/settings',
+    active: route.path === '/settings',
+  }],
+]);
 
-function handleMenuChange(value: string | number) {
-  router.push(String(value));
+const userMenuItems = [[
+  {
+    label: '退出登录',
+    icon: 'i-heroicons-arrow-right-on-rectangle',
+    onSelect: handleLogout,
+  },
+]];
+
+function handleLogout() {
+  auth.logout();
+  toast.add({ title: '已退出登录', color: 'success' });
+  router.push('/login');
 }
 
-function handleUserMenu(data: { value: string }) {
-  if (data.value === 'logout') {
-    auth.logout();
-    MessagePlugin.success('已退出登录');
-    router.push('/login');
-  }
-}
-
-// Check responsive
+// Check responsive on mount
 onMounted(() => {
-  if (window.innerWidth < 768) {
+  if (window.innerWidth < 1024) {
     sidebarCollapsed.value = true;
   }
 });
 </script>
-
-<style scoped>
-.sidebar {
-  border-right: 1px solid var(--td-component-border);
-  transition: width 0.2s;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 16px;
-  cursor: pointer;
-  border-bottom: 1px solid var(--td-component-border);
-}
-
-.logo-icon {
-  font-size: 28px;
-  color: var(--td-brand-color);
-  flex-shrink: 0;
-}
-
-.logo-text {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--td-text-color-primary);
-  white-space: nowrap;
-  overflow: hidden;
-}
-
-.header {
-  border-bottom: 1px solid var(--td-component-border);
-  background: white;
-}
-
-.header-content {
-  display: flex;
-  align-items: center;
-  height: 100%;
-  padding: 0 16px;
-  gap: 12px;
-}
-
-.collapse-btn {
-  display: none;
-}
-
-.page-title {
-  font-size: 16px;
-  font-weight: 500;
-  flex: 1;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.user-text {
-  margin: 0 4px;
-}
-
-.main-content {
-  padding: 24px;
-  background: var(--td-bg-color-page);
-  min-height: calc(100vh - 64px);
-  overflow-y: auto;
-}
-
-@media (max-width: 768px) {
-  .collapse-btn {
-    display: flex;
-  }
-  
-  .user-text {
-    display: none;
-  }
-}
-</style>

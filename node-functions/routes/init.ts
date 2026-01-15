@@ -1,8 +1,8 @@
 /**
  * Initialization API Routes
  * 
- * GET /init/status - 检查初始化状态
- * POST /init - 执行初始化
+ * @tag Init
+ * @description 系统初始化 API，用于首次部署时初始化系统
  */
 
 import Router from '@koa/router';
@@ -15,7 +15,11 @@ import { ApiError, ErrorCodes } from '../types/index.js';
 const router = new Router({ prefix: '/init' });
 
 /**
- * GET /init/status - 检查初始化状态
+ * 检查初始化状态
+ * @tag Init
+ * @summary 检查初始化状态
+ * @description 检查系统是否已完成初始化
+ * @returns {object} 初始化状态
  */
 router.get('/status', async (ctx: AppContext) => {
   const initialized = await configService.exists();
@@ -23,7 +27,11 @@ router.get('/status', async (ctx: AppContext) => {
 });
 
 /**
- * POST /init - 执行初始化
+ * 执行初始化
+ * @tag Init
+ * @summary 初始化系统
+ * @description 首次初始化系统，生成 Admin Token。此操作只能执行一次
+ * @returns {object} 初始化结果，包含 Admin Token
  */
 router.post('/', async (ctx: AppContext) => {
   // 检查是否已初始化
@@ -32,22 +40,13 @@ router.post('/', async (ctx: AppContext) => {
     throw ApiError.badRequest('Application is already initialized', ErrorCodes.INVALID_PARAM);
   }
 
-  // 解析可选的微信配置
-  const body = ctx.request.body as { wechat?: { appId?: string; appSecret?: string; templateId?: string } } | undefined;
-  const wechatConfig = body?.wechat;
-
   // 生成 Admin Token
   const adminToken = generateAdminToken();
   const timestamp = now();
 
-  // 创建初始配置
+  // 创建初始配置（不再包含 wechat 配置，微信配置在渠道中管理）
   const config: SystemConfig = {
     adminToken,
-    wechat: wechatConfig ? {
-      appId: wechatConfig.appId || '',
-      appSecret: wechatConfig.appSecret || '',
-      templateId: wechatConfig.templateId,
-    } : undefined,
     createdAt: timestamp,
     updatedAt: timestamp,
   };

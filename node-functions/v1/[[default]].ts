@@ -16,6 +16,7 @@ import { errorHandler, responseWrapper, cors } from '../middleware/index.js';
 // 路由
 import {
   initRouter,
+  authRouter,
   configRouter,
   channelsRouter,
   appsRouter,
@@ -78,6 +79,9 @@ router.get('/health', async (ctx) => {
 // 注册业务路由
 router.use(initRouter.routes());
 router.use(initRouter.allowedMethods());
+
+router.use(authRouter.routes());
+router.use(authRouter.allowedMethods());
 
 router.use(configRouter.routes());
 router.use(configRouter.allowedMethods());

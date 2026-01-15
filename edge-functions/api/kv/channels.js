@@ -61,13 +61,18 @@ export async function onRequest(context) {
       case 'list': {
         const prefix = url.searchParams.get('prefix') || '';
         const limit = parseInt(url.searchParams.get('limit') || '256', 10);
-        const cursor = url.searchParams.get('cursor') || undefined;
-        const result = await CHANNELS_KV.list({ prefix, limit, cursor });
+        const cursorParam = url.searchParams.get('cursor');
+        // Only pass cursor if it's a non-empty string
+        const listOptions = { prefix, limit };
+        if (cursorParam && cursorParam.length > 0) {
+          listOptions.cursor = cursorParam;
+        }
+        const result = await CHANNELS_KV.list(listOptions);
         return jsonResponse(200, {
           success: true,
           keys: result.keys.map((k) => k.name || k.key),
           complete: result.list_complete || result.complete,
-          cursor: result.cursor,
+          cursor: result.cursor || undefined,
         });
       }
 

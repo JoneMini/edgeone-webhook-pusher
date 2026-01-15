@@ -3,14 +3,22 @@
  * 
  * Handles WeChat API interactions including access token management
  * and user follow status checking.
+ * 
+ * All functions require a Channel parameter to support multi-channel scenarios.
  */
 
 import { configKV } from '../shared/kv-client.js';
-import { configService } from './config.service.js';
+import type { Channel } from '../types/channel.js';
 
-// Access token cache key and TTL (2 hours, token valid for ~2h)
-const ACCESS_TOKEN_KEY = 'wechat_access_token';
+// Access token cache TTL (2 hours, token valid for ~2h)
 const ACCESS_TOKEN_TTL = 7000; // slightly less than 2 hours
+
+/**
+ * Generate cache key for access token based on channel
+ */
+export function getAccessTokenCacheKey(channel: Channel): string {
+  return `wechat_access_token:${channel.config.appId}`;
+}
 
 interface TokenCache {
   accessToken: string;
@@ -34,24 +42,30 @@ interface WeChatUserInfo {
 
 /**
  * Get WeChat access token (cached in KV)
+ * @param channel - The channel containing WeChat credentials
  */
-export async function getAccessToken(): Promise<string | null> {
+export async function getAccessToken(channel: Channel): Promise<string | null> {
+  if (!channel) {
+    throw new Error('Channel is required');
+  }
+
+  const { appId, appSecret } = channel.config;
+  if (!appId || !appSecret) {
+    console.error('WeChat config not found in channel');
+    return null;
+  }
+
+  const cacheKey = getAccessTokenCacheKey(channel);
+
   // Try to get from cache
-  const cached = await configKV.get<TokenCache>(ACCESS_TOKEN_KEY);
+  const cached = await configKV.get<TokenCache>(cacheKey);
   if (cached?.accessToken && cached?.expiresAt > Date.now()) {
     return cached.accessToken;
   }
 
-  // Get WeChat config
-  const wechatConfig = await configService.getWeChatConfig();
-  if (!wechatConfig?.appId || !wechatConfig?.appSecret) {
-    console.error('WeChat config not found');
-    return null;
-  }
-
   // Fetch new access token
   try {
-    const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${wechatConfig.appId}&secret=${wechatConfig.appSecret}`;
+    const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${appId}&secret=${appSecret}`;
     const res = await fetch(url);
     const data = (await res.json()) as WeChatResponse;
 
@@ -69,8 +83,8 @@ export async function getAccessToken(): Promise<string | null> {
       expiresAt: Date.now() + (data.expires_in - 300) * 1000, // 5 min buffer
     };
 
-    // Cache in KV
-    await configKV.put(ACCESS_TOKEN_KEY, tokenData, ACCESS_TOKEN_TTL);
+    // Cache in KV with channel-specific key
+    await configKV.put(cacheKey, tokenData, ACCESS_TOKEN_TTL);
 
     return data.access_token;
   } catch (error) {
@@ -81,9 +95,15 @@ export async function getAccessToken(): Promise<string | null> {
 
 /**
  * Check if user has followed the official account
+ * @param channel - The channel containing WeChat credentials
+ * @param openId - The user's OpenID
  */
-export async function checkUserFollowStatus(openId: string): Promise<{ subscribed: boolean; nickname?: string }> {
-  const accessToken = await getAccessToken();
+export async function checkUserFollowStatus(channel: Channel, openId: string): Promise<{ subscribed: boolean; nickname?: string }> {
+  if (!channel) {
+    throw new Error('Channel is required');
+  }
+
+  const accessToken = await getAccessToken(channel);
   if (!accessToken) {
     return { subscribed: false };
   }
@@ -110,9 +130,15 @@ export async function checkUserFollowStatus(openId: string): Promise<{ subscribe
 
 /**
  * Get user info from WeChat
+ * @param channel - The channel containing WeChat credentials
+ * @param openId - The user's OpenID
  */
-export async function getUserInfo(openId: string): Promise<{ openId: string; nickname?: string; subscribed: boolean } | null> {
-  const accessToken = await getAccessToken();
+export async function getUserInfo(channel: Channel, openId: string): Promise<{ openId: string; nickname?: string; subscribed: boolean } | null> {
+  if (!channel) {
+    throw new Error('Channel is required');
+  }
+
+  const accessToken = await getAccessToken(channel);
   if (!accessToken) {
     return null;
   }

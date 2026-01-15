@@ -1,122 +1,107 @@
 <template>
-  <div class="dashboard">
-    <t-row :gutter="[24, 24]">
+  <div class="p-6">
+    <div class="space-y-6">
       <!-- Stats Cards -->
-      <t-col :xs="24" :sm="8">
-        <t-card :bordered="false" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon channel">
-              <Icon icon="mdi:broadcast" />
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <UCard class="relative">
+          <div class="flex items-center gap-4">
+            <div class="w-14 h-14 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+              <UIcon name="i-heroicons-signal" class="text-2xl text-green-600 dark:text-green-400" />
             </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ stats.channels }}</div>
-              <div class="stat-label">渠道</div>
+            <div>
+              <div class="text-3xl font-bold">{{ stats.channels }}</div>
+              <div class="text-sm text-gray-500 dark:text-gray-400">渠道</div>
             </div>
           </div>
-          <t-button
-            theme="primary"
-            variant="text"
-            class="stat-action"
-            @click="router.push('/channels')"
-          >
-            管理 <Icon icon="mdi:arrow-right" />
-          </t-button>
-        </t-card>
-      </t-col>
+          <NuxtLink to="/channels" class="absolute right-4 bottom-4">
+            <UButton variant="ghost" size="xs" trailing-icon="i-heroicons-arrow-right">
+              管理
+            </UButton>
+          </NuxtLink>
+        </UCard>
 
-      <t-col :xs="24" :sm="8">
-        <t-card :bordered="false" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon app">
-              <Icon icon="mdi:application" />
+        <UCard class="relative">
+          <div class="flex items-center gap-4">
+            <div class="w-14 h-14 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+              <UIcon name="i-heroicons-cube" class="text-2xl text-blue-600 dark:text-blue-400" />
             </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ stats.apps }}</div>
-              <div class="stat-label">应用</div>
+            <div>
+              <div class="text-3xl font-bold">{{ stats.apps }}</div>
+              <div class="text-sm text-gray-500 dark:text-gray-400">应用</div>
             </div>
           </div>
-          <t-button
-            theme="primary"
-            variant="text"
-            class="stat-action"
-            @click="router.push('/apps')"
-          >
-            管理 <Icon icon="mdi:arrow-right" />
-          </t-button>
-        </t-card>
-      </t-col>
+          <NuxtLink to="/apps" class="absolute right-4 bottom-4">
+            <UButton variant="ghost" size="xs" trailing-icon="i-heroicons-arrow-right">
+              管理
+            </UButton>
+          </NuxtLink>
+        </UCard>
 
-      <t-col :xs="24" :sm="8">
-        <t-card :bordered="false" class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon message">
-              <Icon icon="mdi:message-text" />
+        <UCard class="relative">
+          <div class="flex items-center gap-4">
+            <div class="w-14 h-14 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+              <UIcon name="i-heroicons-chat-bubble-left-right" class="text-2xl text-orange-600 dark:text-orange-400" />
             </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ stats.messages }}</div>
-              <div class="stat-label">消息总数</div>
+            <div>
+              <div class="text-3xl font-bold">{{ stats.messages }}</div>
+              <div class="text-sm text-gray-500 dark:text-gray-400">消息总数</div>
             </div>
           </div>
-          <t-button
-            theme="primary"
-            variant="text"
-            class="stat-action"
-            @click="router.push('/messages')"
-          >
-            查看 <Icon icon="mdi:arrow-right" />
-          </t-button>
-        </t-card>
-      </t-col>
+          <NuxtLink to="/messages" class="absolute right-4 bottom-4">
+            <UButton variant="ghost" size="xs" trailing-icon="i-heroicons-arrow-right">
+              查看
+            </UButton>
+          </NuxtLink>
+        </UCard>
+
+        <UCard>
+          <div class="flex items-center gap-4">
+            <div class="w-14 h-14 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+              <UIcon name="i-heroicons-user-group" class="text-2xl text-purple-600 dark:text-purple-400" />
+            </div>
+            <div>
+              <div class="text-3xl font-bold">{{ stats.openIds }}</div>
+              <div class="text-sm text-gray-500 dark:text-gray-400">订阅者</div>
+            </div>
+          </div>
+        </UCard>
+      </div>
 
       <!-- Quick Actions -->
-      <t-col :span="24">
-        <t-card title="快捷操作" :bordered="false">
-          <t-space>
-            <t-button theme="primary" @click="router.push('/channels')">
-              <template #icon><Icon icon="mdi:plus" /></template>
+      <UCard>
+        <template #header>
+          <span class="font-medium">快捷操作</span>
+        </template>
+        <div class="flex flex-wrap gap-3">
+          <NuxtLink to="/channels">
+            <UButton icon="i-heroicons-plus">
               新建渠道
-            </t-button>
-            <t-button theme="default" @click="router.push('/apps')">
-              <template #icon><Icon icon="mdi:plus" /></template>
+            </UButton>
+          </NuxtLink>
+          <NuxtLink to="/apps">
+            <UButton variant="outline" icon="i-heroicons-plus">
               新建应用
-            </t-button>
-            <t-button theme="default" variant="outline" @click="router.push('/settings')">
-              <template #icon><Icon icon="mdi:cog" /></template>
+            </UButton>
+          </NuxtLink>
+          <NuxtLink to="/settings">
+            <UButton variant="ghost" icon="i-heroicons-cog-6-tooth">
               系统设置
-            </t-button>
-          </t-space>
-        </t-card>
-      </t-col>
-
-      <!-- OpenID Stats -->
-      <t-col :span="24">
-        <t-card :bordered="false">
-          <template #header>
-            <div class="card-header">
-              <span>订阅者统计</span>
-            </div>
-          </template>
-          <div class="openid-stat">
-            <Icon icon="mdi:account-group" class="openid-icon" />
-            <span class="openid-count">{{ stats.openIds }}</span>
-            <span class="openid-label">总订阅者</span>
-          </div>
-        </t-card>
-      </t-col>
-    </t-row>
+            </UButton>
+          </NuxtLink>
+        </div>
+      </UCard>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { StatsData } from '~/types';
-import { Icon } from '@iconify/vue';
 
 definePageMeta({
   layout: 'default',
 });
 
 const api = useApi();
-const router = useRouter();
 
 const loading = ref(true);
 const stats = ref<StatsData>({
@@ -135,92 +120,3 @@ onMounted(async () => {
   }
 });
 </script>
-
-<style scoped>
-.dashboard {
-  max-width: 1200px;
-}
-
-.stat-card {
-  position: relative;
-}
-
-.stat-content {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.stat-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-}
-
-.stat-icon.channel {
-  background: rgba(7, 193, 96, 0.1);
-  color: #07c160;
-}
-
-.stat-icon.app {
-  background: rgba(0, 82, 217, 0.1);
-  color: #0052d9;
-}
-
-.stat-icon.message {
-  background: rgba(237, 123, 47, 0.1);
-  color: #ed7b2f;
-}
-
-.stat-info {
-  flex: 1;
-}
-
-.stat-value {
-  font-size: 28px;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.stat-label {
-  color: var(--td-text-color-secondary);
-  font-size: 14px;
-  margin-top: 4px;
-}
-
-.stat-action {
-  position: absolute;
-  right: 16px;
-  bottom: 16px;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.openid-stat {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.openid-icon {
-  font-size: 32px;
-  color: var(--td-brand-color);
-}
-
-.openid-count {
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.openid-label {
-  color: var(--td-text-color-secondary);
-}
-</style>

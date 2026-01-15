@@ -1,13 +1,8 @@
 /**
  * OpenID Management API Routes (nested under Apps)
  * 
- * GET /apps/:appId/openids - 获取应用下的 OpenID 列表
- * POST /apps/:appId/openids - 添加 OpenID
- * GET /apps/:appId/openids/:id - 获取 OpenID 详情
- * PUT /apps/:appId/openids/:id - 更新 OpenID
- * DELETE /apps/:appId/openids/:id - 删除 OpenID
- * 
- * 所有路由需要 Admin Token 认证
+ * @tag OpenIDs
+ * @description OpenID 管理 API，用于管理应用下绑定的微信用户
  */
 
 import Router from '@koa/router';
@@ -24,7 +19,12 @@ const router = new Router({ prefix: '/apps/:appId/openids' });
 router.use(adminAuth);
 
 /**
- * GET /apps/:appId/openids - 获取应用下的 OpenID 列表
+ * 获取 OpenID 列表
+ * @tag OpenIDs
+ * @summary 获取应用下的 OpenID 列表
+ * @description 返回指定应用下绑定的所有微信用户 OpenID
+ * @param {string} appId - 应用 ID
+ * @returns {OpenID[]} OpenID 列表
  */
 router.get('/', async (ctx: AppContext) => {
   const { appId } = ctx.params;
@@ -40,7 +40,13 @@ router.get('/', async (ctx: AppContext) => {
 });
 
 /**
- * POST /apps/:appId/openids - 添加 OpenID
+ * 添加 OpenID
+ * @tag OpenIDs
+ * @summary 添加 OpenID
+ * @description 为指定应用添加一个新的微信用户 OpenID
+ * @param {string} appId - 应用 ID
+ * @param {CreateOpenIDInput} body - OpenID 创建参数
+ * @returns {OpenID} 创建的 OpenID 信息
  */
 router.post('/', async (ctx: AppContext) => {
   const { appId } = ctx.params;
@@ -56,7 +62,13 @@ router.post('/', async (ctx: AppContext) => {
 });
 
 /**
- * GET /apps/:appId/openids/:id - 获取 OpenID 详情
+ * 获取 OpenID 详情
+ * @tag OpenIDs
+ * @summary 获取 OpenID 详情
+ * @description 根据 ID 获取单个 OpenID 的详细信息
+ * @param {string} appId - 应用 ID
+ * @param {string} id - OpenID 记录 ID
+ * @returns {OpenID} OpenID 详情
  */
 router.get('/:id', async (ctx: AppContext) => {
   const { appId, id } = ctx.params;
@@ -75,7 +87,14 @@ router.get('/:id', async (ctx: AppContext) => {
 });
 
 /**
- * PUT /apps/:appId/openids/:id - 更新 OpenID
+ * 更新 OpenID
+ * @tag OpenIDs
+ * @summary 更新 OpenID 信息
+ * @description 更新指定 OpenID 的备注等信息
+ * @param {string} appId - 应用 ID
+ * @param {string} id - OpenID 记录 ID
+ * @param {UpdateOpenIDInput} body - 更新参数
+ * @returns {OpenID} 更新后的 OpenID 信息
  */
 router.put('/:id', async (ctx: AppContext) => {
   const { appId, id } = ctx.params;
@@ -99,7 +118,12 @@ router.put('/:id', async (ctx: AppContext) => {
 });
 
 /**
- * DELETE /apps/:appId/openids/:id - 删除 OpenID
+ * 删除 OpenID
+ * @tag OpenIDs
+ * @summary 删除 OpenID
+ * @description 从应用中删除指定的 OpenID
+ * @param {string} appId - 应用 ID
+ * @param {string} id - OpenID 记录 ID
  */
 router.delete('/:id', async (ctx: AppContext) => {
   const { appId, id } = ctx.params;

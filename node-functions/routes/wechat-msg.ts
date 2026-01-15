@@ -10,18 +10,16 @@
 import Router from '@koa/router';
 import crypto from 'crypto';
 import type { AppContext } from '../types/context.js';
-import { configService } from '../services/config.service.js';
 
 const router = new Router();
 
 /**
- * GET /wechat - 微信服务器验证
+ * 微信服务器验证处理函数
  */
-router.get('/wechat', async (ctx: AppContext) => {
+async function handleWeChatVerify(ctx: AppContext) {
   const { signature, timestamp, nonce, echostr } = ctx.query;
 
-  const wechatConfig = await configService.getWeChatConfig();
-  // 注意：msgToken 需要在 SystemConfig 中添加，这里暂时使用空字符串
+  // 注意：msgToken 需要在 Channel 配置中添加，这里暂时使用空字符串
   const token = '';
 
   // 验证签名
@@ -35,7 +33,17 @@ router.get('/wechat', async (ctx: AppContext) => {
     ctx.status = 403;
     ctx.body = 'Invalid signature';
   }
-});
+}
+
+/**
+ * GET /wechat - 微信服务器验证（无渠道 ID）
+ */
+router.get('/wechat', handleWeChatVerify);
+
+/**
+ * GET /wechat/:channelId - 微信服务器验证（带渠道 ID）
+ */
+router.get('/wechat/:channelId', handleWeChatVerify);
 
 /**
  * POST /wechat - 处理微信消息和事件

@@ -9,6 +9,7 @@ import { KVKeys, DefaultConfig } from '../types/index.js';
 
 /**
  * ConfigService - 管理应用配置
+ * 只管理 adminToken、rateLimit 和 retention 设置
  */
 class ConfigService {
   /**
@@ -45,6 +46,7 @@ class ConfigService {
   /**
    * 更新应用配置（不包括 adminToken）
    * Admin Token 在初始化后不可变 - 这是安全要求
+   * 只处理 rateLimit 和 retention，忽略其他字段
    */
   async updateConfig(updates: Partial<SystemConfig>): Promise<SystemConfig> {
     const config = await this.getConfig();
@@ -53,21 +55,13 @@ class ConfigService {
     }
 
     // 安全：禁止更新 adminToken - 初始化后不可变
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { adminToken, createdAt, ...allowedUpdates } = updates;
-
     if (updates.adminToken !== undefined) {
       console.warn('Attempted to update adminToken - this is not allowed');
     }
 
+    // 只更新 rateLimit 和 retention
     const updatedConfig: SystemConfig = {
       ...config,
-      ...allowedUpdates,
-      wechat: updates.wechat ? {
-        appId: updates.wechat.appId ?? config.wechat?.appId ?? '',
-        appSecret: updates.wechat.appSecret ?? config.wechat?.appSecret ?? '',
-        templateId: updates.wechat.templateId ?? config.wechat?.templateId,
-      } : config.wechat,
       rateLimit: {
         perMinute: updates.rateLimit?.perMinute ?? config.rateLimit?.perMinute ?? DefaultConfig.rateLimit.perMinute,
       },
@@ -87,15 +81,6 @@ class ConfigService {
   async exists(): Promise<boolean> {
     const config = await configKV.get<SystemConfig>(KVKeys.CONFIG);
     return config !== null;
-  }
-
-  /**
-   * 获取微信配置
-   */
-  async getWeChatConfig(): Promise<SystemConfig['wechat'] | null> {
-    const config = await this.getConfig();
-    if (!config || !config.wechat) return null;
-    return config.wechat;
   }
 
   /**
@@ -121,13 +106,6 @@ class ConfigService {
     return {
       ...config,
       adminToken: config.adminToken ? '***' : undefined,
-      wechat: config.wechat
-        ? {
-            appId: config.wechat.appId,
-            appSecret: config.wechat.appSecret ? '***' : '',
-            templateId: config.wechat.templateId,
-          }
-        : undefined,
     };
   }
 }

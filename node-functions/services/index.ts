@@ -8,4 +8,4 @@ export { appService } from './app.service.js';
 export { openidService } from './openid.service.js';
 export { messageService } from './message.service.js';
 export { pushService } from './push.service.js';
-export { wechatService, getAccessToken, checkUserFollowStatus, getUserInfo } from './wechat.service.js';
+export { wechatService, getAccessToken, checkUserFollowStatus, getUserInfo, getAccessTokenCacheKey } from './wechat.service.js';

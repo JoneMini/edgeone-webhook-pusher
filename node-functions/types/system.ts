@@ -4,11 +4,6 @@
 
 export interface SystemConfig {
   adminToken: string;
-  wechat?: {
-    appId: string;
-    appSecret: string;
-    templateId?: string;
-  };
   rateLimit?: {
     perMinute: number;
   };

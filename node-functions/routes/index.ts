@@ -3,6 +3,7 @@
  */
 
 export { default as initRouter } from './init.js';
+export { default as authRouter } from './auth.js';
 export { default as configRouter } from './config.js';
 export { default as channelsRouter } from './channels.js';
 export { default as appsRouter } from './apps.js';

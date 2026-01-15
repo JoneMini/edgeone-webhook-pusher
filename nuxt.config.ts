@@ -1,9 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import { cpSync } from 'fs';
 import { resolve } from 'path';
-import Components from 'unplugin-vue-components/vite';
-import AutoImport from 'unplugin-auto-import/vite';
-import { TDesignResolver } from 'unplugin-vue-components/resolvers';
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
@@ -55,8 +52,16 @@ export default defineNuxtConfig({
     },
   },
 
+  // CSS
+  css: ['~/assets/css/main.css'],
+
   // Modules
-  modules: ['@pinia/nuxt'],
+  modules: ['@pinia/nuxt', '@nuxt/ui'],
+
+  // Color mode - default to light
+  colorMode: {
+    preference: 'light',
+  },
 
   // Router middleware
   router: {
@@ -65,29 +70,6 @@ export default defineNuxtConfig({
       linkExactActiveClass: 'exact-active',
     },
   },
-
-  // TDesign auto-import
-  vite: {
-    plugins: [
-      Components({
-        resolvers: [
-          TDesignResolver({
-            library: 'vue-next',
-          }),
-        ],
-      }),
-      AutoImport({
-        resolvers: [
-          TDesignResolver({
-            library: 'vue-next',
-          }),
-        ],
-      }),
-    ],
-  },
-
-  // CSS
-  css: ['tdesign-vue-next/es/style/index.css'],
 
   // App config
   app: {
@@ -100,4 +82,6 @@ export default defineNuxtConfig({
       ],
     },
   },
+
+
 });
