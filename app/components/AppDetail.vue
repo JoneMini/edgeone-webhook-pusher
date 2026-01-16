@@ -76,36 +76,27 @@
           </div>
           <div class="flex justify-between">
             <dt class="text-gray-500 dark:text-gray-400">创建时间</dt>
-            <dd>{{ app.createdAt }}</dd>
+            <dd>{{ formatDateTime(app.createdAt) }}</dd>
           </div>
         </dl>
       </div>
     </div>
 
+    <!-- WeChat Binding -->
+    <BindCodeCard :app-id="app.id" />
+
     <!-- OpenID Management -->
     <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
       <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
-        <div class="flex items-center justify-between">
-          <span class="font-medium">绑定用户</span>
-          <button
-            class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            @click="showAddOpenIdModal = true"
-          >
-            <Icon icon="heroicons:plus" class="text-sm" />
-            添加
-          </button>
-        </div>
+        <span class="font-medium">绑定用户</span>
       </div>
       <div class="p-4">
         <div v-if="openIds.length === 0" class="text-center py-6 text-gray-500 dark:text-gray-400">
-          <Icon icon="heroicons:user-minus" class="text-3xl mb-2 opacity-50" />
+          <div class="flex justify-center mb-2">
+            <Icon icon="heroicons:user-minus" class="text-3xl opacity-50" />
+          </div>
           <p class="text-sm">暂无绑定用户</p>
-          <button
-            class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors mt-2"
-            @click="showAddOpenIdModal = true"
-          >
-            添加第一个 OpenID
-          </button>
+          <p class="text-xs mt-1">请使用上方「微信绑定」功能添加用户</p>
         </div>
 
         <div v-else class="space-y-2">
@@ -115,7 +106,15 @@
             class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
           >
             <div class="flex items-center gap-3">
-              <Icon icon="heroicons:user" class="text-lg text-primary-600" />
+              <img 
+                v-if="item.avatar" 
+                :src="item.avatar" 
+                class="w-10 h-10 rounded-full"
+                alt="用户头像"
+              />
+              <div v-else class="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                <Icon icon="heroicons:user" class="text-lg text-primary-600" />
+              </div>
               <div>
                 <div class="font-medium text-sm">{{ item.nickname || item.openId }}</div>
                 <div v-if="item.nickname" class="text-xs text-gray-500 dark:text-gray-400 font-mono">{{ item.openId }}</div>
@@ -225,56 +224,13 @@
       </div>
     </div>
 
-    <!-- Add OpenID Modal -->
-    <div
-      v-if="showAddOpenIdModal"
-      class="fixed inset-0 z-50 overflow-x-hidden overflow-y-auto"
-    >
-      <div class="min-h-screen flex items-center justify-center p-4">
-        <div class="flex flex-col bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-lg rounded-xl w-full max-w-md">
-          <div class="flex justify-between items-center py-3 px-4 border-b border-gray-200 dark:border-gray-800">
-            <h3 class="font-semibold text-gray-800 dark:text-gray-200">添加 OpenID</h3>
-            <button
-              type="button"
-              class="p-2 text-gray-400 hover:text-gray-500 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
-              @click="showAddOpenIdModal = false"
-            >
-              <Icon icon="heroicons:x-mark" class="text-xl" />
-            </button>
-          </div>
-          <div class="p-4">
-            <div class="space-y-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">OpenID</label>
-                <input v-model="addOpenIdForm.openId" placeholder="微信用户 OpenID" class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none" />
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">昵称</label>
-                <input v-model="addOpenIdForm.nickname" placeholder="可选，便于识别" class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none" />
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">备注</label>
-                <input v-model="addOpenIdForm.remark" placeholder="可选" class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none" />
-              </div>
-            </div>
-          </div>
-          <div class="flex justify-end gap-2 py-3 px-4 border-t border-gray-200 dark:border-gray-800">
-            <button class="px-4 py-2 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" @click="showAddOpenIdModal = false">取消</button>
-            <button :disabled="addingOpenId" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-colors" @click="handleAddOpenId">
-              <Icon v-if="addingOpenId" icon="heroicons:arrow-path" class="text-base animate-spin" />
-              添加
-            </button>
-          </div>
-        </div>
-        <div class="fixed inset-0 bg-black/50 -z-10" @click="showAddOpenIdModal = false"></div>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
-import type { AppWithCount, Channel, OpenID, UpdateAppInput, CreateOpenIDInput } from '~/types';
+import type { AppWithCount, Channel, OpenID, UpdateAppInput } from '~/types';
+import { formatDateTime } from '~/utils/datetime';
 
 const props = defineProps<{
   app: AppWithCount;
@@ -292,13 +248,10 @@ const toast = useToast();
 // State
 const openIds = ref<OpenID[]>([]);
 const showEditModal = ref(false);
-const showAddOpenIdModal = ref(false);
 const saving = ref(false);
-const addingOpenId = ref(false);
 const activeTab = ref(0);
 
 const editForm = ref({ name: '', templateId: '' });
-const addOpenIdForm = ref<CreateOpenIDInput>({ openId: '', nickname: '', remark: '' });
 
 const webhookUrl = computed(() => {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -375,30 +328,6 @@ async function handleDelete() {
   } catch (e: unknown) {
     const err = e as Error;
     toast.add({ title: err.message || '删除失败', color: 'error' });
-  }
-}
-
-async function handleAddOpenId() {
-  if (!addOpenIdForm.value.openId.trim()) {
-    toast.add({ title: '请输入 OpenID', color: 'warning' });
-    return;
-  }
-  addingOpenId.value = true;
-  try {
-    await api.createAppOpenId(props.app.id, {
-      openId: addOpenIdForm.value.openId.trim(),
-      nickname: addOpenIdForm.value.nickname?.trim() || undefined,
-      remark: addOpenIdForm.value.remark?.trim() || undefined,
-    });
-    toast.add({ title: '添加成功', color: 'success' });
-    showAddOpenIdModal.value = false;
-    addOpenIdForm.value = { openId: '', nickname: '', remark: '' };
-    await fetchOpenIds();
-  } catch (e: unknown) {
-    const err = e as Error;
-    toast.add({ title: err.message || '添加失败', color: 'error' });
-  } finally {
-    addingOpenId.value = false;
   }
 }
 

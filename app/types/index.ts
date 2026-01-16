@@ -25,3 +25,6 @@ export * from './constants';
 
 // 前端特有类型
 export * from './frontend';
+
+// BindCode 绑定码
+export * from './bindcode';

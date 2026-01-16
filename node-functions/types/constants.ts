@@ -38,6 +38,8 @@ export const KVKeys = {
   OPENID: (id: string) => `oid:${id}`,
   OPENID_APP: (appId: string) => `oid_app:${appId}`,
   OPENID_INDEX: (appId: string, openId: string) => `oid_idx:${appId}:${openId}`,
+  BINDCODE_PREFIX: 'bc:',
+  BINDCODE: (code: string) => `bc:${code}`,
   MESSAGE_PREFIX: 'msg:',
   MESSAGE: (id: string) => `msg:${id}`,
   MESSAGE_LIST: 'msg_list',

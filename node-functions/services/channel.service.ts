@@ -3,10 +3,18 @@
  * 管理消息发送渠道（如微信公众号）
  */
 
+import crypto from 'crypto';
 import { channelsKV, appsKV } from '../shared/kv-client.js';
 import { generateChannelId, now, maskCredential } from '../shared/utils.js';
 import type { Channel, CreateChannelInput, UpdateChannelInput, App } from '../types/index.js';
 import { KVKeys, ChannelTypes, ApiError, ErrorCodes } from '../types/index.js';
+
+/**
+ * 生成消息回调 Token
+ */
+function generateMsgToken(): string {
+  return crypto.randomBytes(16).toString('hex');
+}
 
 class ChannelService {
   /**
@@ -36,6 +44,7 @@ class ChannelService {
       config: {
         appId: config.appId,
         appSecret: config.appSecret,
+        msgToken: generateMsgToken(), // 自动生成消息回调 Token
       },
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -56,7 +65,16 @@ class ChannelService {
    * 根据 ID 获取渠道
    */
   async getById(id: string): Promise<Channel | null> {
-    return channelsKV.get<Channel>(KVKeys.CHANNEL(id));
+    const channel = await channelsKV.get<Channel>(KVKeys.CHANNEL(id));
+    
+    // 如果渠道存在但没有 msgToken，自动生成并保存
+    if (channel && !channel.config.msgToken) {
+      channel.config.msgToken = generateMsgToken();
+      channel.updatedAt = now();
+      await channelsKV.put(KVKeys.CHANNEL(id), channel);
+    }
+    
+    return channel;
   }
 
   /**
@@ -100,6 +118,9 @@ class ChannelService {
       }
       if (config.appSecret !== undefined) {
         channel.config.appSecret = config.appSecret;
+      }
+      if (config.msgToken !== undefined) {
+        channel.config.msgToken = config.msgToken;
       }
     }
 
@@ -158,6 +179,7 @@ class ChannelService {
       config: {
         appId: channel.config.appId,
         appSecret: maskCredential(channel.config.appSecret),
+        msgToken: channel.config.msgToken, // 不脱敏，用户需要复制到微信后台
       },
     };
   }

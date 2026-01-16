@@ -20,16 +20,19 @@ router.use(adminAuth);
  * 获取消息历史列表
  * @tag Messages
  * @summary 获取消息历史
- * @description 分页获取推送消息的历史记录，支持按应用和日期筛选
+ * @description 分页获取消息历史记录，支持按渠道、应用、用户、方向和日期筛选
  * @param {number} page - 页码，默认 1
  * @param {number} pageSize - 每页数量，默认 20，最大 100
+ * @param {string} channelId - 按渠道筛选
  * @param {string} appId - 按应用筛选
+ * @param {string} openId - 按用户筛选
+ * @param {string} direction - 按方向筛选（inbound/outbound）
  * @param {string} startDate - 开始日期
  * @param {string} endDate - 结束日期
  * @returns {object} 消息列表和分页信息
  */
 router.get('/', async (ctx: AppContext) => {
-  const { page, pageSize, appId, startDate, endDate } = ctx.query;
+  const { page, pageSize, channelId, appId, openId, direction, startDate, endDate } = ctx.query;
 
   const pageNum = parseInt(page as string || '1', 10);
   const pageSizeNum = parseInt(pageSize as string || '20', 10);
@@ -42,10 +45,19 @@ router.get('/', async (ctx: AppContext) => {
     throw ApiError.badRequest('pageSize must be between 1 and 100');
   }
 
+  // 验证 direction 参数
+  const validDirections = ['inbound', 'outbound'];
+  if (direction && !validDirections.includes(direction as string)) {
+    throw ApiError.badRequest('direction must be inbound or outbound');
+  }
+
   const result = await messageService.list({
     page: pageNum,
     pageSize: pageSizeNum,
+    channelId: channelId as string | undefined,
     appId: appId as string | undefined,
+    openId: openId as string | undefined,
+    direction: direction as 'inbound' | 'outbound' | undefined,
     startDate: startDate as string | undefined,
     endDate: endDate as string | undefined,
   });

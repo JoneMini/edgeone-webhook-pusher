@@ -7,6 +7,7 @@ export type ChannelType = 'wechat';
 export interface WeChatConfig {
   appId: string;
   appSecret: string;
+  msgToken?: string;  // 消息回调 Token
 }
 
 export interface Channel {

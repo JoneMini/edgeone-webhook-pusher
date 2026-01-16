@@ -2,7 +2,7 @@
  * 应用 API
  */
 
-import type { ApiResponse, App, CreateAppInput, UpdateAppInput, AppWithCount } from '~/types';
+import type { ApiResponse, App, CreateAppInput, UpdateAppInput, AppWithCount, CreateBindCodeResponse, BindCodeStatusResponse } from '~/types';
 import { useRequest } from './useRequest';
 
 export function useAppApi() {
@@ -43,11 +43,27 @@ export function useAppApi() {
     return del<void>(`/apps/${id}`);
   }
 
+  /**
+   * 生成绑定码
+   */
+  function generateBindCode(appId: string): Promise<ApiResponse<CreateBindCodeResponse>> {
+    return post<CreateBindCodeResponse>(`/apps/${appId}/bindcode`, {});
+  }
+
+  /**
+   * 查询绑定码状态
+   */
+  function getBindCodeStatus(appId: string, code: string): Promise<ApiResponse<BindCodeStatusResponse>> {
+    return get<BindCodeStatusResponse>(`/apps/${appId}/bindcode/${code}`);
+  }
+
   return {
     getApps,
     getApp,
     createApp,
     updateApp,
     deleteApp,
+    generateBindCode,
+    getBindCodeStatus,
   };
 }

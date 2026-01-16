@@ -1,7 +1,6 @@
 <template>
   <div class="api-docs-page">
     <iframe
-      ref="iframeRef"
       class="api-docs-iframe"
       :srcdoc="iframeSrcdoc"
       sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
@@ -15,7 +14,6 @@ definePageMeta({
 })
 
 const isDark = ref(false)
-const iframeRef = ref<HTMLIFrameElement | null>(null)
 
 onMounted(() => {
   // 检测当前暗色模式状态
@@ -77,7 +75,7 @@ const iframeSrcdoc = computed(() => {
 </head>
 <body>
   <div id="app"></div>
-  <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.43.4/dist/browser/standalone.min.js"><\/script>
+  <script src="/js/scalar-standalone.min.js"><\/script>
   <script>
     Scalar.createApiReference('#app', {
       spec: {

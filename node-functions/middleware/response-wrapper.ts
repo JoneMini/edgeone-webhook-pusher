@@ -12,13 +12,23 @@ import { ErrorCodes } from '../types/index.js';
 export async function responseWrapper(ctx: Context, next: Next): Promise<void> {
   await next();
 
-  // 如果响应体已经是标准格式，不再包装
-  if (ctx.body && typeof ctx.body === 'object' && 'code' in ctx.body) {
+  // 如果响应体已经是标准格式（有 code 和 message 字段），不再包装
+  if (ctx.body && typeof ctx.body === 'object' && 'code' in ctx.body && 'message' in ctx.body) {
     return;
   }
 
   // 204 No Content 不需要包装
   if (ctx.status === 204) {
+    return;
+  }
+
+  // XML 响应不包装（微信消息回复）
+  if (ctx.type === 'application/xml' || ctx.type === 'text/xml') {
+    return;
+  }
+
+  // 纯文本响应不包装（微信验证 echostr）
+  if (typeof ctx.body === 'string' && !ctx.body.startsWith('{')) {
     return;
   }
 

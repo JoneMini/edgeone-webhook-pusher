@@ -21,6 +21,7 @@ import {
   channelsRouter,
   appsRouter,
   openidsRouter,
+  bindcodeRouter,
   messagesRouter,
   statsRouter,
   wechatMsgRouter,
@@ -94,6 +95,9 @@ router.use(appsRouter.allowedMethods());
 
 router.use(openidsRouter.routes());
 router.use(openidsRouter.allowedMethods());
+
+router.use(bindcodeRouter.routes());
+router.use(bindcodeRouter.allowedMethods());
 
 router.use(messagesRouter.routes());
 router.use(messagesRouter.allowedMethods());

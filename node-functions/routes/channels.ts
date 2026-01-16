@@ -8,6 +8,7 @@
 import Router from '@koa/router';
 import type { AppContext } from '../types/context.js';
 import { channelService } from '../services/channel.service.js';
+import { wechatService } from '../services/wechat.service.js';
 import { adminAuth } from '../middleware/admin-auth.js';
 import type { CreateChannelInput, UpdateChannelInput } from '../types/index.js';
 import { ApiError, ErrorCodes } from '../types/index.js';
@@ -101,6 +102,46 @@ router.delete('/:id', async (ctx: AppContext) => {
   const { id } = ctx.params;
   await channelService.delete(id);
   ctx.status = 204;
+});
+
+/**
+ * 验证渠道配置
+ * @tag Channels
+ * @summary 验证渠道配置
+ * @description 验证微信公众号配置是否正确，通过尝试获取 Access Token 来验证
+ * @param {string} id - 渠道 ID
+ * @returns {object} 验证结果
+ */
+router.get('/:id/verify', async (ctx: AppContext) => {
+  const { id } = ctx.params;
+  const channel = await channelService.getById(id);
+
+  if (!channel) {
+    throw ApiError.notFound('Channel not found', ErrorCodes.CHANNEL_NOT_FOUND);
+  }
+
+  const result = await wechatService.verifyChannelConfig(channel);
+  ctx.body = result;
+});
+
+/**
+ * 获取渠道 Token 维护状态
+ * @tag Channels
+ * @summary 获取 Token 状态
+ * @description 获取微信公众号 Access Token 的维护状态，包括最后刷新时间、是否成功、过期时间等
+ * @param {string} id - 渠道 ID
+ * @returns {TokenStatus} Token 维护状态
+ */
+router.get('/:id/token-status', async (ctx: AppContext) => {
+  const { id } = ctx.params;
+  const channel = await channelService.getById(id);
+
+  if (!channel) {
+    throw ApiError.notFound('Channel not found', ErrorCodes.CHANNEL_NOT_FOUND);
+  }
+
+  const status = await wechatService.getTokenStatus(id);
+  ctx.body = status || { valid: false, lastRefreshAt: 0, lastRefreshSuccess: false };
 });
 
 export default router;

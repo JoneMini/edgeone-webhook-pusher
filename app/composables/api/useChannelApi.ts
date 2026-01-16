@@ -5,6 +5,18 @@
 import type { ApiResponse, Channel, CreateChannelInput, UpdateChannelInput } from '~/types';
 import { useRequest } from './useRequest';
 
+/**
+ * Token 维护状态
+ */
+export interface TokenStatus {
+  valid: boolean;
+  lastRefreshAt: number;
+  lastRefreshSuccess: boolean;
+  expiresAt?: number;
+  error?: string;
+  errorCode?: number;
+}
+
 export function useChannelApi() {
   const { get, post, put, del } = useRequest();
 
@@ -43,11 +55,27 @@ export function useChannelApi() {
     return del<void>(`/channels/${id}`);
   }
 
+  /**
+   * 验证渠道配置
+   */
+  function verifyChannel(id: string): Promise<ApiResponse<{ valid: boolean }>> {
+    return get<{ valid: boolean }>(`/channels/${id}/verify`);
+  }
+
+  /**
+   * 获取渠道 Token 维护状态
+   */
+  function getChannelTokenStatus(id: string): Promise<ApiResponse<TokenStatus>> {
+    return get<TokenStatus>(`/channels/${id}/token-status`);
+  }
+
   return {
     getChannels,
     getChannel,
     createChannel,
     updateChannel,
     deleteChannel,
+    verifyChannel,
+    getChannelTokenStatus,
   };
 }
