@@ -8,6 +8,19 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
   ssr: false,
 
+  // 开发模式代理配置
+  // 将 /v1/* 请求代理到本地 Node Functions 服务器
+  vite: {
+    server: {
+      proxy: {
+        '/v1': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+        },
+      },
+    },
+  },
+
   nitro: {
     output: {
       dir: 'dist',
