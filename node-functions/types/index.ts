@@ -11,6 +11,9 @@ export * from './app';
 // OpenID 订阅者
 export * from './openid';
 
+// BindCode 绑定码
+export * from './bindcode';
+
 // Message 消息
 export * from './message';
 

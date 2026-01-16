@@ -102,3 +102,112 @@ describe('WeChatService Property Tests', () => {
     });
   });
 });
+
+
+/**
+ * Property 8: 微信错误码映射
+ * Feature: wechat-user-binding, Property 8: 微信错误码映射
+ * Validates: Requirements 1.2
+ */
+import { getWeChatErrorMessage, WECHAT_ERROR_MESSAGES } from './wechat.service.js';
+
+describe('Property 8: 微信错误码映射', () => {
+  it('已知错误码应返回对应的中文错误信息', () => {
+    const knownErrorCodes = Object.keys(WECHAT_ERROR_MESSAGES).map(Number);
+    
+    fc.assert(
+      fc.property(
+        fc.constantFrom(...knownErrorCodes),
+        (errcode) => {
+          const message = getWeChatErrorMessage(errcode);
+          expect(message).toBe(WECHAT_ERROR_MESSAGES[errcode]);
+          expect(message).not.toContain('微信 API 错误:');
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('未知错误码应返回默认格式的错误信息', () => {
+    const knownErrorCodes = new Set(Object.keys(WECHAT_ERROR_MESSAGES).map(Number));
+    
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1, max: 99999 }).filter(n => !knownErrorCodes.has(n)),
+        (errcode) => {
+          const message = getWeChatErrorMessage(errcode);
+          expect(message).toBe(`微信 API 错误: ${errcode}`);
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('常见错误码应有明确的中文描述', () => {
+    // 验证常见错误码都有映射
+    const commonErrorCodes = [40001, 40013, 40125, 42001, 48001];
+    
+    for (const errcode of commonErrorCodes) {
+      const message = getWeChatErrorMessage(errcode);
+      expect(message).toBeTruthy();
+      expect(message).not.toBe(`微信 API 错误: ${errcode}`);
+    }
+  });
+});
+
+/**
+ * Property 6: 用户信息默认值处理
+ * Feature: wechat-user-binding, Property 6: 用户信息默认值处理
+ * Validates: Requirements 5.3
+ * 
+ * 注意：此测试验证默认值处理逻辑，实际 API 调用需要集成测试
+ */
+describe('Property 6: 用户信息默认值处理', () => {
+  // 模拟用户信息处理逻辑
+  function processUserInfo(data: { nickname?: string; headimgurl?: string }) {
+    const nickname = data.nickname && data.nickname.trim() ? data.nickname : undefined;
+    const avatar = data.headimgurl && data.headimgurl.trim() ? data.headimgurl : undefined;
+    return { nickname, avatar };
+  }
+
+  it('空字符串昵称应返回 undefined', () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom('', '   ', '\t', '\n'),
+        (emptyNickname) => {
+          const result = processUserInfo({ nickname: emptyNickname, headimgurl: 'http://example.com/avatar.jpg' });
+          expect(result.nickname).toBeUndefined();
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('空字符串头像应返回 undefined', () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom('', '   ', '\t', '\n'),
+        (emptyAvatar) => {
+          const result = processUserInfo({ nickname: '测试用户', headimgurl: emptyAvatar });
+          expect(result.avatar).toBeUndefined();
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('有效昵称和头像应保留原值', () => {
+    fc.assert(
+      fc.property(
+        fc.string({ minLength: 1, maxLength: 50 }).filter(s => s.trim().length > 0),
+        fc.webUrl(),
+        (nickname, avatar) => {
+          const result = processUserInfo({ nickname, headimgurl: avatar });
+          expect(result.nickname).toBe(nickname);
+          expect(result.avatar).toBe(avatar);
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+});

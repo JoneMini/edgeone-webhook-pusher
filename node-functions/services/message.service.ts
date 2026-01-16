@@ -1,17 +1,20 @@
 /**
  * Message Service - 消息历史记录管理
  * 
- * 支持按 App 筛选消息历史
+ * 支持按渠道、应用、用户、方向筛选消息历史
  */
 
 import { messagesKV } from '../shared/kv-client.js';
-import type { Message } from '../types/index.js';
+import type { Message, MessageDirection } from '../types/index.js';
 import { KVKeys } from '../types/index.js';
 
 interface ListOptions {
   page?: number;
   pageSize?: number;
+  channelId?: string;
   appId?: string;
+  openId?: string;
+  direction?: MessageDirection;
   startDate?: string;
   endDate?: string;
 }
@@ -26,6 +29,8 @@ interface ListResult {
 interface Stats {
   total: number;
   today: number;
+  inbound: number;
+  outbound: number;
   success: number;
   failed: number;
 }
@@ -41,13 +46,42 @@ class MessageService {
     // 更新全局消息列表
     const globalList = (await messagesKV.get<string[]>(KVKeys.MESSAGE_LIST)) || [];
     globalList.unshift(message.id); // 新消息放在前面
+    // 限制列表长度，防止无限增长
+    if (globalList.length > 10000) {
+      globalList.length = 10000;
+    }
     await messagesKV.put(KVKeys.MESSAGE_LIST, globalList);
+
+    // 更新渠道消息列表
+    if (message.channelId) {
+      const channelKey = `msg_channel:${message.channelId}`;
+      const channelList = (await messagesKV.get<string[]>(channelKey)) || [];
+      channelList.unshift(message.id);
+      if (channelList.length > 5000) {
+        channelList.length = 5000;
+      }
+      await messagesKV.put(channelKey, channelList);
+    }
 
     // 更新应用消息列表
     if (message.appId) {
       const appList = (await messagesKV.get<string[]>(KVKeys.MESSAGE_APP(message.appId))) || [];
       appList.unshift(message.id);
+      if (appList.length > 5000) {
+        appList.length = 5000;
+      }
       await messagesKV.put(KVKeys.MESSAGE_APP(message.appId), appList);
+    }
+
+    // 更新用户消息列表
+    if (message.openId) {
+      const openIdKey = `msg_openid:${message.openId}`;
+      const openIdList = (await messagesKV.get<string[]>(openIdKey)) || [];
+      openIdList.unshift(message.id);
+      if (openIdList.length > 1000) {
+        openIdList.length = 1000;
+      }
+      await messagesKV.put(openIdKey, openIdList);
     }
   }
 
@@ -62,12 +96,16 @@ class MessageService {
    * 分页查询消息历史
    */
   async list(options: ListOptions = {}): Promise<ListResult> {
-    const { page = 1, pageSize = 20, appId, startDate, endDate } = options;
+    const { page = 1, pageSize = 20, channelId, appId, openId, direction, startDate, endDate } = options;
 
-    // 根据是否有 appId 筛选，选择不同的列表
+    // 根据筛选条件选择最优的索引列表
     let ids: string[];
-    if (appId) {
+    if (openId) {
+      ids = (await messagesKV.get<string[]>(`msg_openid:${openId}`)) || [];
+    } else if (appId) {
       ids = (await messagesKV.get<string[]>(KVKeys.MESSAGE_APP(appId))) || [];
+    } else if (channelId) {
+      ids = (await messagesKV.get<string[]>(`msg_channel:${channelId}`)) || [];
     } else {
       ids = (await messagesKV.get<string[]>(KVKeys.MESSAGE_LIST)) || [];
     }
@@ -83,6 +121,23 @@ class MessageService {
 
     // 筛选
     let filtered = allMessages;
+
+    // 按渠道筛选（如果不是通过渠道索引获取的）
+    if (channelId && !openId && !appId) {
+      // 已经通过渠道索引获取，无需再筛选
+    } else if (channelId) {
+      filtered = filtered.filter((m) => m.channelId === channelId);
+    }
+
+    // 按应用筛选（如果不是通过应用索引获取的）
+    if (appId && openId) {
+      filtered = filtered.filter((m) => m.appId === appId);
+    }
+
+    // 按方向筛选
+    if (direction) {
+      filtered = filtered.filter((m) => m.direction === direction);
+    }
 
     if (startDate) {
       const start = new Date(startDate);
@@ -110,6 +165,20 @@ class MessageService {
    */
   async listByApp(appId: string, options: Omit<ListOptions, 'appId'> = {}): Promise<ListResult> {
     return this.list({ ...options, appId });
+  }
+
+  /**
+   * 按渠道获取消息列表
+   */
+  async listByChannel(channelId: string, options: Omit<ListOptions, 'channelId'> = {}): Promise<ListResult> {
+    return this.list({ ...options, channelId });
+  }
+
+  /**
+   * 按用户获取消息列表
+   */
+  async listByOpenId(openId: string, options: Omit<ListOptions, 'openId'> = {}): Promise<ListResult> {
+    return this.list({ ...options, openId });
   }
 
   /**
@@ -152,6 +221,8 @@ class MessageService {
 
     let total = 0;
     let todayCount = 0;
+    let inbound = 0;
+    let outbound = 0;
     let success = 0;
     let failed = 0;
 
@@ -164,7 +235,14 @@ class MessageService {
           todayCount++;
         }
 
-        // 统计成功/失败
+        // 统计方向
+        if (data.direction === 'inbound') {
+          inbound++;
+        } else {
+          outbound++;
+        }
+
+        // 统计成功/失败（仅发出的消息）
         if (data.results) {
           for (const r of data.results) {
             if (r.success) {
@@ -177,7 +255,7 @@ class MessageService {
       }
     }
 
-    return { total, today: todayCount, success, failed };
+    return { total, today: todayCount, inbound, outbound, success, failed };
   }
 }
 

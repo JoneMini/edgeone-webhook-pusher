@@ -145,6 +145,9 @@ class PushService {
     // 保存消息历史
     const messageRecord: Message = {
       id: pushId,
+      direction: 'outbound',
+      type: 'push',
+      channelId: channel.id,
       appId: app.id,
       title: message.title,
       desp: message.desp,

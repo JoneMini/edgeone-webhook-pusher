@@ -10,12 +10,14 @@ export default defineNuxtConfig({
 
   // 开发模式代理配置
   // 将 /v1/* 请求代理到本地 Node Functions 服务器
+  // rewrite 去掉 /v1 前缀，因为 Node Functions 本地运行时路由不带 /v1
   vite: {
     server: {
       proxy: {
         '/v1': {
           target: 'http://localhost:3001',
           changeOrigin: true,
+          rewrite: (path: string) => path.replace(/^\/v1/, ''),
         },
       },
     },

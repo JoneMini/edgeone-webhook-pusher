@@ -2,167 +2,212 @@
   <div class="p-6">
     <div class="flex items-center justify-between mb-6">
       <h1 class="text-2xl font-semibold">消息历史</h1>
-      <div class="relative w-48">
-        <Icon icon="heroicons:magnifying-glass" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          v-model="appFilter"
-          placeholder="按应用ID筛选"
-          class="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-          @input="handleFilterChange"
-        />
+      <div class="flex items-center gap-3">
+        <select
+          v-model="directionFilter"
+          class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+          @change="handleFilterChange"
+        >
+          <option value="">全部方向</option>
+          <option value="outbound">发出</option>
+          <option value="inbound">收到</option>
+        </select>
+        <div class="relative w-48">
+          <Icon icon="heroicons:magnifying-glass" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base" />
+          <input
+            v-model="searchFilter"
+            placeholder="按应用/用户ID筛选"
+            class="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+            @input="handleFilterChange"
+          />
+        </div>
       </div>
     </div>
 
-    <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
-      <div class="p-4">
-        <div v-if="loading" class="flex justify-center py-12">
-          <Icon icon="heroicons:arrow-path" class="text-3xl animate-spin text-gray-400" />
-        </div>
+    <!-- Loading -->
+    <div v-if="loading" class="flex justify-center py-12">
+      <Icon icon="heroicons:arrow-path" class="text-3xl animate-spin text-gray-400" />
+    </div>
 
-        <div v-else-if="messages.length === 0" class="text-center py-12 text-gray-500 dark:text-gray-400">
-          <Icon icon="heroicons:chat-bubble-left-right" class="text-5xl mb-3 opacity-50" />
-          <p>暂无消息记录</p>
-        </div>
+    <!-- Empty State -->
+    <div v-else-if="messages.length === 0" class="text-center py-12">
+      <div class="flex justify-center">
+        <Icon icon="heroicons:inbox" class="text-5xl text-gray-300 dark:text-gray-600" />
+      </div>
+      <p class="mt-4 text-gray-500 dark:text-gray-400">暂无消息记录</p>
+    </div>
 
-        <div v-else class="overflow-x-auto">
-          <table class="w-full text-sm text-left">
-            <thead class="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-50 dark:bg-gray-800">
-              <tr>
-                <th class="px-4 py-3">标题</th>
-                <th class="px-4 py-3">应用ID</th>
-                <th class="px-4 py-3">状态</th>
-                <th class="px-4 py-3">时间</th>
-                <th class="px-4 py-3">操作</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-              <tr v-for="msg in messages" :key="msg.id" class="hover:bg-gray-50 dark:hover:bg-gray-800">
-                <td class="px-4 py-3">{{ msg.title }}</td>
-                <td class="px-4 py-3">{{ msg.appId }}</td>
-                <td class="px-4 py-3">
-                  <span
-                    class="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full"
-                    :class="getStatusClass(msg.results)"
-                  >
-                    {{ getStatusInfo(msg.results).label }}
-                  </span>
-                </td>
-                <td class="px-4 py-3">{{ formatTime(msg.createdAt) }}</td>
-                <td class="px-4 py-3">
-                  <button
-                    class="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    @click="showDetail(msg)"
-                  >
-                    <Icon icon="heroicons:eye" class="text-base" />
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+    <!-- Message Table -->
+    <div v-else class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+      <table class="w-full">
+        <thead class="bg-gray-50 dark:bg-gray-800/50">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">方向</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">类型</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">标题</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">来源/目标</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">状态</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">时间</th>
+            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">操作</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 dark:divide-gray-800">
+          <tr v-for="msg in messages" :key="msg.id" class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+            <td class="px-4 py-3">
+              <span :class="getDirectionClass(msg.direction)" class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full">
+                <Icon :icon="getDirectionIcon(msg.direction)" class="text-sm" />
+                {{ msg.direction === 'outbound' ? '发出' : '收到' }}
+              </span>
+            </td>
+            <td class="px-4 py-3">
+              <span :class="getTypeClass(msg.type)" class="px-2 py-0.5 text-xs font-medium rounded-full">
+                {{ getTypeLabel(msg.type) }}
+              </span>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 max-w-xs truncate">
+              {{ msg.title }}
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+              <template v-if="msg.direction === 'outbound'">
+                <span class="text-xs text-gray-400">应用:</span> {{ msg.appId || '-' }}
+              </template>
+              <template v-else>
+                <span class="text-xs text-gray-400">用户:</span> {{ truncateOpenId(msg.openId) }}
+              </template>
+            </td>
+            <td class="px-4 py-3">
+              <template v-if="msg.direction === 'outbound' && msg.results">
+                <span :class="getStatusClass(msg.results)" class="px-2 py-0.5 text-xs font-medium rounded-full">
+                  {{ getStatusText(msg.results) }}
+                </span>
+              </template>
+              <span v-else class="text-gray-400">-</span>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+              {{ formatDateTime(msg.createdAt) }}
+            </td>
+            <td class="px-4 py-3 text-right">
+              <button
+                class="inline-flex items-center justify-center w-8 h-8 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                @click="showDetail(msg)"
+              >
+                <Icon icon="heroicons:eye" class="text-lg" />
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
-        <!-- Pagination -->
-        <div v-if="pagination.total > pagination.pageSize" class="flex justify-center mt-4 gap-1">
-          <button
-            :disabled="pagination.current === 1"
-            class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            @click="pagination.current > 1 && (pagination.current--, handlePageChange())"
-          >
-            上一页
-          </button>
-          <span class="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400">
-            {{ pagination.current }} / {{ Math.ceil(pagination.total / pagination.pageSize) }}
-          </span>
-          <button
-            :disabled="pagination.current >= Math.ceil(pagination.total / pagination.pageSize)"
-            class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            @click="pagination.current < Math.ceil(pagination.total / pagination.pageSize) && (pagination.current++, handlePageChange())"
-          >
-            下一页
-          </button>
-        </div>
+    <!-- Pagination -->
+    <div v-if="pagination.totalPages > 1" class="mt-4 flex items-center justify-between">
+      <p class="text-sm text-gray-500 dark:text-gray-400">
+        共 {{ pagination.total }} 条记录，第 {{ pagination.page }}/{{ pagination.totalPages }} 页
+      </p>
+      <div class="flex items-center gap-2">
+        <button
+          :disabled="pagination.page <= 1"
+          class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          @click="goToPage(pagination.page - 1)"
+        >
+          上一页
+        </button>
+        <button
+          :disabled="pagination.page >= pagination.totalPages"
+          class="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          @click="goToPage(pagination.page + 1)"
+        >
+          下一页
+        </button>
       </div>
     </div>
 
     <!-- Detail Modal -->
-    <div
-      v-if="showDetailModal"
-      class="fixed inset-0 z-50 overflow-x-hidden overflow-y-auto"
-    >
+    <div v-if="selectedMessage" class="fixed inset-0 z-50 overflow-x-hidden overflow-y-auto">
       <div class="min-h-screen flex items-center justify-center p-4">
-        <div class="flex flex-col bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-lg rounded-xl w-full max-w-2xl">
+        <div class="flex flex-col bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-lg rounded-xl w-full max-w-2xl max-h-[80vh]">
           <div class="flex justify-between items-center py-3 px-4 border-b border-gray-200 dark:border-gray-800">
             <h3 class="font-semibold text-gray-800 dark:text-gray-200">消息详情</h3>
             <button
               type="button"
               class="p-2 text-gray-400 hover:text-gray-500 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
-              @click="showDetailModal = false"
+              @click="selectedMessage = null"
             >
               <Icon icon="heroicons:x-mark" class="text-xl" />
             </button>
           </div>
-          <div class="p-4 overflow-y-auto max-h-[70vh]">
-            <div v-if="selectedMessage" class="space-y-4">
-              <dl class="space-y-3">
-                <div class="flex justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                  <dt class="text-gray-500 dark:text-gray-400">消息ID</dt>
-                  <dd><code class="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">{{ selectedMessage.id }}</code></dd>
-                </div>
-                <div class="flex justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                  <dt class="text-gray-500 dark:text-gray-400">应用ID</dt>
-                  <dd>{{ selectedMessage.appId }}</dd>
-                </div>
-                <div class="flex justify-between py-2 border-b border-gray-100 dark:border-gray-800">
-                  <dt class="text-gray-500 dark:text-gray-400">标题</dt>
-                  <dd>{{ selectedMessage.title }}</dd>
-                </div>
-                <div class="py-2 border-b border-gray-100 dark:border-gray-800">
-                  <dt class="text-gray-500 dark:text-gray-400 mb-2">内容</dt>
-                  <dd>
-                    <pre class="text-sm bg-gray-50 dark:bg-gray-800 p-3 rounded-lg whitespace-pre-wrap break-all max-h-40 overflow-auto">{{ selectedMessage.desp || '无' }}</pre>
-                  </dd>
-                </div>
-                <div class="flex justify-between py-2">
-                  <dt class="text-gray-500 dark:text-gray-400">发送时间</dt>
-                  <dd>{{ formatTime(selectedMessage.createdAt) }}</dd>
-                </div>
-              </dl>
-
-              <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-                <div class="text-sm text-gray-500 dark:text-gray-400 mb-3">发送结果</div>
+          <div class="p-4 overflow-y-auto">
+            <div class="space-y-4">
+              <!-- Direction & Type -->
+              <div class="flex items-center gap-4">
+                <span :class="getDirectionClass(selectedMessage.direction)" class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full">
+                  <Icon :icon="getDirectionIcon(selectedMessage.direction)" class="text-sm" />
+                  {{ selectedMessage.direction === 'outbound' ? '发出' : '收到' }}
+                </span>
+                <span :class="getTypeClass(selectedMessage.type)" class="px-2 py-0.5 text-xs font-medium rounded-full">
+                  {{ getTypeLabel(selectedMessage.type) }}
+                </span>
               </div>
 
-              <div class="space-y-2">
-                <div
-                  v-for="(result, i) in selectedMessage.results"
-                  :key="i"
-                  class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                >
-                  <div class="flex items-center gap-3">
-                    <Icon icon="heroicons:user" class="text-lg text-primary-600" />
-                    <span class="text-sm font-mono">{{ result.openId }}</span>
-                  </div>
-                  <span
-                    class="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full"
-                    :class="result.success ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'"
+              <!-- Basic Info -->
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">消息 ID</label>
+                  <p class="text-sm font-mono text-gray-900 dark:text-gray-100">{{ selectedMessage.id }}</p>
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">渠道 ID</label>
+                  <p class="text-sm font-mono text-gray-900 dark:text-gray-100">{{ selectedMessage.channelId }}</p>
+                </div>
+                <div v-if="selectedMessage.appId">
+                  <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">应用 ID</label>
+                  <p class="text-sm font-mono text-gray-900 dark:text-gray-100">{{ selectedMessage.appId }}</p>
+                </div>
+                <div v-if="selectedMessage.openId">
+                  <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">用户 OpenID</label>
+                  <p class="text-sm font-mono text-gray-900 dark:text-gray-100 break-all">{{ selectedMessage.openId }}</p>
+                </div>
+                <div v-if="selectedMessage.event">
+                  <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">事件类型</label>
+                  <p class="text-sm font-mono text-gray-900 dark:text-gray-100">{{ selectedMessage.event }}</p>
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">时间</label>
+                  <p class="text-sm text-gray-900 dark:text-gray-100">{{ formatDateTime(selectedMessage.createdAt) }}</p>
+                </div>
+              </div>
+
+              <!-- Title -->
+              <div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">标题</label>
+                <p class="text-sm text-gray-900 dark:text-gray-100">{{ selectedMessage.title }}</p>
+              </div>
+
+              <!-- Content -->
+              <div v-if="selectedMessage.desp">
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">内容</label>
+                <div class="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{{ selectedMessage.desp }}</div>
+              </div>
+
+              <!-- Delivery Results (outbound only) -->
+              <div v-if="selectedMessage.direction === 'outbound' && selectedMessage.results && selectedMessage.results.length > 0">
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-2">发送结果</label>
+                <div class="space-y-2">
+                  <div
+                    v-for="(result, idx) in selectedMessage.results"
+                    :key="idx"
+                    class="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg"
                   >
-                    {{ result.success ? '成功' : '失败' }}
-                  </span>
-                </div>
-              </div>
-
-              <div
-                v-if="selectedMessage.results?.some(r => r.error)"
-                class="p-4 rounded-lg border bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300"
-              >
-                <div class="flex items-start gap-3">
-                  <Icon icon="heroicons:exclamation-triangle" class="text-xl shrink-0 mt-0.5" />
-                  <div>
-                    <div class="font-medium mb-1">错误信息</div>
-                    <div v-for="(r, i) in selectedMessage.results" :key="i">
-                      <div v-if="r.error" class="text-sm">
-                        {{ r.openId }}: {{ r.error }}
-                      </div>
+                    <div class="flex items-center justify-center w-6 h-6 rounded-full" :class="result.success ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'">
+                      <Icon
+                        :icon="result.success ? 'heroicons:check' : 'heroicons:x-mark'"
+                        :class="result.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'"
+                        class="text-sm"
+                      />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-mono text-gray-900 dark:text-gray-100 truncate">{{ result.openId }}</p>
+                      <p v-if="result.error" class="text-xs text-red-500">{{ result.error }}</p>
                     </div>
                   </div>
                 </div>
@@ -170,7 +215,7 @@
             </div>
           </div>
         </div>
-        <div class="fixed inset-0 bg-black/50 -z-10" @click="showDetailModal = false"></div>
+        <div class="fixed inset-0 bg-black/50 -z-10" @click="selectedMessage = null"></div>
       </div>
     </div>
   </div>
@@ -178,7 +223,7 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
-import type { Message, DeliveryResult, PaginatedResponse } from '~/types';
+import type { Message, MessageDirection, MessageRecordType, DeliveryResult } from '~/types';
 
 definePageMeta({
   layout: 'default',
@@ -187,84 +232,138 @@ definePageMeta({
 const api = useApi();
 const toast = useToast();
 
+// State
 const loading = ref(true);
 const messages = ref<Message[]>([]);
-const showDetailModal = ref(false);
+const directionFilter = ref<'' | 'inbound' | 'outbound'>('');
+const searchFilter = ref('');
 const selectedMessage = ref<Message | null>(null);
-const appFilter = ref('');
-
-const pagination = reactive({
-  current: 1,
-  pageSize: 10,
+const pagination = ref({
   total: 0,
+  page: 1,
+  pageSize: 20,
+  totalPages: 0,
 });
 
-function formatTime(iso: string) {
-  if (!iso) return '-';
-  return new Date(iso).toLocaleString('zh-CN');
+// Debounce filter change
+let filterTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function handleFilterChange() {
+  if (filterTimeout) clearTimeout(filterTimeout);
+  filterTimeout = setTimeout(() => {
+    pagination.value.page = 1;
+    fetchMessages();
+  }, 300);
 }
 
-function getStatusInfo(results: DeliveryResult[]) {
-  if (!results || results.length === 0) {
-    return { label: '未知', color: 'neutral' as const };
-  }
-  const allSuccess = results.every(r => r.success);
-  const allFailed = results.every(r => !r.success);
-  
-  if (allSuccess) return { label: '成功', color: 'success' as const };
-  if (allFailed) return { label: '失败', color: 'error' as const };
-  return { label: '部分成功', color: 'warning' as const };
-}
-
-function getStatusClass(results: DeliveryResult[]) {
-  const status = getStatusInfo(results);
-  const classes = {
-    success: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    error: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-    warning: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-    neutral: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
-  };
-  return classes[status.color];
-}
-
-async function loadMessages() {
+async function fetchMessages() {
   loading.value = true;
   try {
-    const params = {
-      page: pagination.current,
-      pageSize: pagination.pageSize,
-      appId: appFilter.value || undefined,
+    const params: Record<string, string | number> = {
+      page: pagination.value.page,
+      pageSize: pagination.value.pageSize,
     };
-    
-    const res = await api.getMessages(params);
-    if (res.code === 0 && res.data) {
-      const data = res.data as PaginatedResponse<Message>;
-      messages.value = data.items || [];
-      pagination.total = data.pagination?.total || 0;
-    } else {
-      toast.add({ title: res.message || '获取消息列表失败', color: 'error' });
+    if (directionFilter.value) {
+      params.direction = directionFilter.value;
+    }
+    if (searchFilter.value.trim()) {
+      // 尝试判断是 appId 还是 openId
+      const search = searchFilter.value.trim();
+      if (search.startsWith('o') && search.length > 20) {
+        params.openId = search;
+      } else {
+        params.appId = search;
+      }
+    }
+
+    const res = await api.getMessages(params as any);
+    if (res.data) {
+      messages.value = res.data.items || [];
+      pagination.value = {
+        ...pagination.value,
+        ...res.data.pagination,
+      };
     }
   } catch (e: unknown) {
     const err = e as Error;
-    toast.add({ title: err.message || '获取消息列表失败', color: 'error' });
+    toast.add({ title: err.message || '获取消息失败', color: 'error' });
   } finally {
     loading.value = false;
   }
 }
 
-function handlePageChange() {
-  loadMessages();
-}
-
-function handleFilterChange() {
-  pagination.current = 1;
-  loadMessages();
+function goToPage(page: number) {
+  pagination.value.page = page;
+  fetchMessages();
 }
 
 function showDetail(msg: Message) {
   selectedMessage.value = msg;
-  showDetailModal.value = true;
 }
 
-onMounted(loadMessages);
+// Helper functions
+function getDirectionIcon(direction: MessageDirection): string {
+  return direction === 'outbound' ? 'heroicons:arrow-up-right' : 'heroicons:arrow-down-left';
+}
+
+function getDirectionClass(direction: MessageDirection): string {
+  return direction === 'outbound'
+    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+    : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+}
+
+function getTypeLabel(type: MessageRecordType): string {
+  const labels: Record<MessageRecordType, string> = {
+    push: '推送',
+    text: '文本',
+    event: '事件',
+  };
+  return labels[type] || type;
+}
+
+function getTypeClass(type: MessageRecordType): string {
+  const classes: Record<MessageRecordType, string> = {
+    push: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+    text: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+    event: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  };
+  return classes[type] || 'bg-gray-100 text-gray-700';
+}
+
+function getStatusClass(results: DeliveryResult[]): string {
+  const allSuccess = results.every(r => r.success);
+  const allFailed = results.every(r => !r.success);
+  if (allSuccess) return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+  if (allFailed) return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+  return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
+}
+
+function getStatusText(results: DeliveryResult[]): string {
+  const success = results.filter(r => r.success).length;
+  const total = results.length;
+  if (success === total) return '成功';
+  if (success === 0) return '失败';
+  return `${success}/${total}`;
+}
+
+function truncateOpenId(openId?: string): string {
+  if (!openId) return '-';
+  if (openId.length <= 12) return openId;
+  return `${openId.slice(0, 6)}...${openId.slice(-4)}`;
+}
+
+function formatDateTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${year}年${month}月${day}日 ${hours}:${minutes}:${seconds}`;
+}
+
+onMounted(() => {
+  fetchMessages();
+});
 </script>

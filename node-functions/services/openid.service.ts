@@ -14,7 +14,7 @@ class OpenIdService {
    * 在指定应用下创建 OpenID 记录
    */
   async create(appId: string, data: CreateOpenIDInput): Promise<OpenID> {
-    const { openId, nickname, remark } = data;
+    const { openId, nickname, avatar, remark } = data;
 
     // 验证必填字段
     if (!openId || !openId.trim()) {
@@ -43,6 +43,7 @@ class OpenIdService {
       appId,
       openId: trimmedOpenId,
       ...(nickname && { nickname: nickname.trim() }),
+      ...(avatar && { avatar: avatar.trim() }),
       ...(remark && { remark: remark.trim() }),
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -95,10 +96,14 @@ class OpenIdService {
       throw ApiError.notFound('OpenID not found', ErrorCodes.OPENID_NOT_FOUND);
     }
 
-    const { nickname, remark } = data;
+    const { nickname, avatar, remark } = data;
 
     if (nickname !== undefined) {
       record.nickname = nickname ? nickname.trim() : undefined;
+    }
+
+    if (avatar !== undefined) {
+      record.avatar = avatar ? avatar.trim() : undefined;
     }
 
     if (remark !== undefined) {

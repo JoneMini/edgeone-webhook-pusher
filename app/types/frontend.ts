@@ -44,7 +44,10 @@ export interface PaginatedResponse<T> {
  * 消息查询参数
  */
 export interface MessageQueryParams extends PaginationParams {
+  channelId?: string;
   appId?: string;
+  openId?: string;
+  direction?: 'inbound' | 'outbound';
   startDate?: string;
   endDate?: string;
 }
