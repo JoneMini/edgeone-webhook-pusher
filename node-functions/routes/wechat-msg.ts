@@ -235,7 +235,8 @@ async function handleWeChatMessage(ctx: AppContext, channelId?: string) {
 
   if (toUser && fromUser) {
     ctx.type = 'application/xml';
-    ctx.body = buildTextReply(toUser, fromUser, replyContent);
+    // 回复时交换发送者和接收者：ToUserName 是用户，FromUserName 是公众号
+    ctx.body = buildTextReply(fromUser, toUser, replyContent);
     console.log('\x1b[32m[WeChat]\x1b[0m Reply XML sent');
   } else {
     // 无法构建回复时返回 success

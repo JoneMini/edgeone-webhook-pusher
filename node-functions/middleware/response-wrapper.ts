@@ -23,7 +23,8 @@ export async function responseWrapper(ctx: Context, next: Next): Promise<void> {
   }
 
   // XML 响应不包装（微信消息回复）
-  if (ctx.type === 'application/xml' || ctx.type === 'text/xml') {
+  const contentType = ctx.type || ctx.response.get('Content-Type') || '';
+  if (contentType.includes('xml')) {
     return;
   }
 
