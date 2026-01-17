@@ -18,96 +18,8 @@
           <Icon icon="heroicons:arrow-path" class="text-3xl animate-spin text-gray-400" />
         </div>
 
-        <!-- App List -->
-        <div v-else-if="apps.length > 0" class="space-y-4">
-          <div
-            v-for="app in apps"
-            :key="app.id"
-            class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6"
-          >
-            <div class="flex items-start justify-between mb-4">
-              <div class="flex-1">
-                <h3 class="text-lg font-semibold mb-1">{{ app.name }}</h3>
-                <div class="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                  <span>绑定用户: {{ app.openIdCount || 0 }}</span>
-                  <span v-if="app.daysRemaining !== undefined" class="flex items-center gap-1">
-                    <Icon icon="heroicons:clock" class="text-base" />
-                    剩余 {{ app.daysRemaining }} 天
-                  </span>
-                </div>
-              </div>
-              <button
-                class="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                @click="handleDelete(app.id)"
-                title="删除应用"
-              >
-                <Icon icon="heroicons:trash" class="text-xl" />
-              </button>
-            </div>
-
-            <!-- Webhook URL -->
-            <div class="mb-4">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Webhook URL
-              </label>
-              <div class="flex gap-2">
-                <input
-                  :value="getWebhookUrl(app.id)"
-                  readonly
-                  class="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                />
-                <button
-                  class="px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                  @click="copyToClipboard(getWebhookUrl(app.id))"
-                >
-                  复制
-                </button>
-              </div>
-            </div>
-
-            <!-- Bind Code Section -->
-            <div class="border-t border-gray-200 dark:border-gray-800 pt-4">
-              <div class="flex items-center justify-between mb-3">
-                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">用户绑定</h4>
-                <button
-                  :disabled="generatingCode[app.id]"
-                  class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
-                  @click="handleGenerateCode(app.id)"
-                >
-                  <Icon v-if="generatingCode[app.id]" icon="heroicons:arrow-path" class="text-base animate-spin" />
-                  生成绑定码
-                </button>
-              </div>
-              
-              <div v-if="bindCodes[app.id]" class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-                <div class="text-center mb-3">
-                  <div class="text-3xl font-mono font-bold text-primary-600 dark:text-primary-400 tracking-wider">
-                    {{ bindCodes[app.id]?.code }}
-                  </div>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {{ bindCodes[app.id]?.expiresIn }}
-                  </p>
-                </div>
-                <p class="text-xs text-gray-600 dark:text-gray-400 text-center">
-                  在微信公众号中发送 "绑定 {{ bindCodes[app.id]?.code }}" 完成绑定
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Create New Button -->
-          <button
-            class="w-full py-3 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
-            @click="showCreateModal = true"
-          >
-            <Icon icon="heroicons:plus" class="text-xl inline-block mr-2" />
-            创建新应用
-          </button>
-        </div>
-
-        <!-- Empty State -->
-        <div v-else class="space-y-6">
-          <!-- Usage Guide -->
+        <!-- Quick Start Guide - Always Show -->
+        <div v-if="!loading" class="mb-6">
           <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
             <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
               <div class="flex items-center gap-2">
@@ -136,7 +48,7 @@
                   <div class="flex-1">
                     <div class="font-medium text-sm">创建体验应用</div>
                     <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      点击下方「创建第一个应用」按钮，输入应用名称并选择推送模式（单播或订阅）。系统会自动使用测试渠道和模板配置。
+                      点击下方「创建新应用」按钮，输入应用名称并选择推送模式（单播或订阅）和消息类型（模板或文本）。
                     </div>
                   </div>
                 </div>
@@ -175,31 +87,222 @@
               <!-- 额外提示 -->
               <div class="mt-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
                 <div class="text-xs text-gray-600 dark:text-gray-400">
-                  <div class="font-medium mb-1">推送模式说明</div>
+                  <div class="font-medium mb-1">配置说明</div>
                   <ul class="list-disc list-inside space-y-0.5 text-gray-500 dark:text-gray-500">
-                    <li><strong>单播</strong>：只发送给第一个绑定的用户，适合个人通知</li>
-                    <li><strong>订阅</strong>：发送给所有绑定的用户，适合群发通知</li>
+                    <li><strong>推送模式</strong>：单播（只发给第一个绑定用户）/ 订阅（发给所有绑定用户）</li>
+                    <li><strong>消息类型</strong>：模板消息（推荐，无时间限制）/ 文本消息（有 48 小时限制）</li>
                   </ul>
                 </div>
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- Create First App CTA -->
-          <div class="text-center py-8">
-            <Icon icon="heroicons:cube-transparent" class="text-6xl text-gray-300 dark:text-gray-700 mx-auto mb-4" />
-            <h3 class="text-lg font-semibold mb-2">开始体验</h3>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-              创建您的第一个体验应用，快速测试微信公众号推送功能
-            </p>
-            <button
-              class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors"
-              @click="showCreateModal = true"
-            >
-              <Icon icon="heroicons:plus" class="text-base" />
-              创建第一个应用
-            </button>
+        <!-- App List -->
+        <div v-if="!loading && apps.length > 0" class="space-y-4">
+          <div
+            v-for="app in apps"
+            :key="app.id"
+            class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6"
+          >
+            <div class="flex items-start justify-between mb-4">
+              <div class="flex-1">
+                <h3 class="text-lg font-semibold mb-1">{{ app.name }}</h3>
+                <div class="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                  <span>绑定用户: {{ app.openIdCount || 0 }}</span>
+                  <span v-if="app.daysRemaining !== undefined" class="flex items-center gap-1">
+                    <Icon icon="heroicons:clock" class="text-base" />
+                    剩余 {{ app.daysRemaining }} 天
+                  </span>
+                </div>
+                <div class="flex items-center gap-3 mt-2 text-xs">
+                  <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
+                    <Icon icon="heroicons:paper-airplane" class="text-sm" />
+                    {{ app.pushMode === 'single' ? '单播模式' : '订阅模式' }}
+                  </span>
+                  <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400">
+                    <Icon icon="heroicons:document-text" class="text-sm" />
+                    {{ app.messageType === 'template' ? '模板消息' : '文本消息' }}
+                  </span>
+                </div>
+              </div>
+              <button
+                class="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                @click="handleDelete(app.id)"
+                title="删除应用"
+              >
+                <Icon icon="heroicons:trash" class="text-xl" />
+              </button>
+            </div>
+
+            <!-- Webhook URL -->
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Webhook URL
+              </label>
+              <div class="flex gap-2">
+                <input
+                  :value="getWebhookUrl(app.key)"
+                  readonly
+                  class="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                />
+                <button
+                  class="px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  @click="copyToClipboard(getWebhookUrl(app.key))"
+                >
+                  复制
+                </button>
+              </div>
+            </div>
+
+            <!-- Webhook Usage Examples -->
+            <div class="border-t border-gray-200 dark:border-gray-800 pt-4">
+              <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">使用示例</h4>
+              
+              <!-- Tabs -->
+              <div class="border-b border-gray-200 dark:border-gray-700 mb-3">
+                <nav class="flex gap-4" aria-label="Tabs">
+                  <button
+                    v-for="(tab, index) in usageTabs"
+                    :key="index"
+                    class="py-2 px-1 text-xs font-medium border-b-2 transition-colors"
+                    :class="activeUsageTab[app.id] === index ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
+                    @click="activeUsageTab[app.id] = index"
+                  >
+                    {{ tab.label }}
+                  </button>
+                </nav>
+              </div>
+
+              <!-- Tab Content -->
+              <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                <!-- cURL GET -->
+                <div v-if="(activeUsageTab[app.id] || 0) === 0">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs text-gray-600 dark:text-gray-400">GET 请求（推荐）</span>
+                    <button
+                      class="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                      @click="copyToClipboard(getWebhookExample(app.key, 'curl'))"
+                    >
+                      复制
+                    </button>
+                  </div>
+                  <pre class="text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded overflow-x-auto"><code>{{ getWebhookExample(app.key, 'curl') }}</code></pre>
+                </div>
+
+                <!-- POST JSON -->
+                <div v-else-if="(activeUsageTab[app.id] || 0) === 1">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs text-gray-600 dark:text-gray-400">POST 请求（JSON）</span>
+                    <button
+                      class="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                      @click="copyToClipboard(getWebhookExample(app.key, 'post'))"
+                    >
+                      复制
+                    </button>
+                  </div>
+                  <pre class="text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded overflow-x-auto"><code>{{ getWebhookExample(app.key, 'post') }}</code></pre>
+                </div>
+
+                <!-- Browser -->
+                <div v-else>
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs text-gray-600 dark:text-gray-400">浏览器访问</span>
+                    <button
+                      class="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                      @click="copyToClipboard(getWebhookExample(app.key, 'browser'))"
+                    >
+                      复制
+                    </button>
+                  </div>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">直接在浏览器地址栏访问：</p>
+                  <pre class="text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded overflow-x-auto"><code>{{ getWebhookExample(app.key, 'browser') }}</code></pre>
+                </div>
+              </div>
+
+              <!-- Parameters Guide -->
+              <div class="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div class="text-xs text-blue-700 dark:text-blue-400">
+                  <div class="font-medium mb-1">参数说明</div>
+                  <ul class="space-y-0.5">
+                    <li>• <code class="bg-blue-100 dark:bg-blue-900/30 px-1 rounded">title</code> - 消息标题（必填）</li>
+                    <li>• <code class="bg-blue-100 dark:bg-blue-900/30 px-1 rounded">desp</code> - 消息内容（可选）</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bind Code Section -->
+            <div class="border-t border-gray-200 dark:border-gray-800 pt-4">
+              <div class="flex items-center justify-between mb-3">
+                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">用户绑定</h4>
+                <button
+                  :disabled="generatingCode[app.id]"
+                  class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
+                  @click="handleGenerateCode(app.id)"
+                >
+                  <Icon v-if="generatingCode[app.id]" icon="heroicons:arrow-path" class="text-base animate-spin" />
+                  生成绑定码
+                </button>
+              </div>
+              
+              <div v-if="bindCodes[app.id]" class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                <!-- 二维码（如果可用） -->
+                <div v-if="bindCodes[app.id]?.qrCodeUrl" class="text-center mb-4">
+                  <div class="inline-block p-3 bg-white rounded-lg shadow-sm">
+                    <img 
+                      :src="bindCodes[app.id]!.qrCodeUrl" 
+                      alt="绑定二维码"
+                      class="w-48 h-48 mx-auto"
+                    />
+                  </div>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    使用微信扫描二维码完成绑定
+                  </p>
+                </div>
+
+                <!-- 绑定码 -->
+                <div class="text-center" :class="{ 'mb-3': !bindCodes[app.id]?.qrCodeUrl }">
+                  <div class="text-3xl font-mono font-bold text-primary-600 dark:text-primary-400 tracking-wider">
+                    {{ bindCodes[app.id]?.code }}
+                  </div>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {{ bindCodes[app.id]?.expiresIn }}
+                  </p>
+                </div>
+
+                <!-- 手动绑定说明 -->
+                <p class="text-xs text-gray-600 dark:text-gray-400 text-center" :class="{ 'mt-3': bindCodes[app.id]?.qrCodeUrl }">
+                  <span v-if="bindCodes[app.id]?.qrCodeUrl">或</span>在微信公众号中发送 "绑定 {{ bindCodes[app.id]?.code }}" 完成绑定
+                </p>
+              </div>
+            </div>
           </div>
+
+          <!-- Create New Button -->
+          <button
+            class="w-full py-3 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+            @click="showCreateModal = true"
+          >
+            <Icon icon="heroicons:plus" class="text-xl inline-block mr-2" />
+            创建新应用
+          </button>
+        </div>
+
+        <!-- Empty State - No Apps -->
+        <div v-if="!loading && apps.length === 0" class="text-center py-8">
+          <Icon icon="heroicons:cube-transparent" class="text-6xl text-gray-300 dark:text-gray-700 mx-auto mb-4" />
+          <h3 class="text-lg font-semibold mb-2">开始体验</h3>
+          <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            创建您的第一个体验应用，快速测试微信公众号推送功能
+          </p>
+          <button
+            class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors"
+            @click="showCreateModal = true"
+          >
+            <Icon icon="heroicons:plus" class="text-base" />
+            创建第一个应用
+          </button>
         </div>
       </div>
     </div>
@@ -334,13 +437,21 @@ const apps = ref<DemoAppWithInfo[]>([]);
 const showCreateModal = ref(false);
 const creating = ref(false);
 const generatingCode = ref<Record<string, boolean>>({});
-const bindCodes = ref<Record<string, { code: string; expiresIn: string }>>({});
+const bindCodes = ref<Record<string, { code: string; expiresIn: string; qrCodeUrl?: string }>>({});
+const pollingIntervals = ref<Record<string, NodeJS.Timeout>>({});
+const activeUsageTab = ref<Record<string, number>>({});
 
 const createForm = ref<DemoAppCreateInput>({
   name: '',
   pushMode: 'single',
   messageType: 'template',
 });
+
+const usageTabs = [
+  { label: 'cURL' },
+  { label: 'POST' },
+  { label: '浏览器' },
+];
 
 onMounted(() => {
   fetchApps();
@@ -416,8 +527,12 @@ async function handleGenerateCode(appId: string) {
       bindCodes.value[appId] = {
         code: res.data.bindCode,
         expiresIn: `${Math.floor(expiresInSeconds / 60)} 分钟后过期`,
+        qrCodeUrl: res.data.qrCodeUrl,
       };
       toast.add({ title: '绑定码生成成功', color: 'success' });
+      
+      // 开始轮询检查绑定状态
+      startPollingBindStatus(appId, res.data.bindCode);
     } else {
       toast.add({ title: res.error || '生成绑定码失败', color: 'error' });
     }
@@ -429,9 +544,83 @@ async function handleGenerateCode(appId: string) {
   }
 }
 
-function getWebhookUrl(appId: string): string {
+/**
+ * 开始轮询绑定码状态
+ */
+function startPollingBindStatus(appId: string, code: string) {
+  // 清除之前的轮询（如果有）
+  if (pollingIntervals.value[appId]) {
+    clearInterval(pollingIntervals.value[appId]);
+  }
+
+  // 每 3 秒检查一次绑定状态
+  pollingIntervals.value[appId] = setInterval(async () => {
+    try {
+      const res = await demoApps.getBindCodeStatus(appId, code);
+      if (res.success && res.data) {
+        if (res.data.status === 'bound') {
+          // 绑定成功
+          clearInterval(pollingIntervals.value[appId]);
+          delete pollingIntervals.value[appId];
+          delete bindCodes.value[appId];
+          
+          toast.add({ 
+            title: `绑定成功！欢迎 ${res.data.nickname || '新用户'}`, 
+            color: 'success' 
+          });
+          
+          // 刷新应用列表以更新绑定用户数
+          await fetchApps();
+        } else if (res.data.status === 'expired') {
+          // 绑定码已过期
+          clearInterval(pollingIntervals.value[appId]);
+          delete pollingIntervals.value[appId];
+          delete bindCodes.value[appId];
+          
+          toast.add({ title: '绑定码已过期，请重新生成', color: 'warning' });
+        }
+      }
+    } catch (e) {
+      console.error('[DemoAppsPage] Poll bind status error:', e);
+    }
+  }, 3000);
+}
+
+/**
+ * 停止所有轮询
+ */
+function stopAllPolling() {
+  Object.values(pollingIntervals.value).forEach(interval => {
+    clearInterval(interval);
+  });
+  pollingIntervals.value = {};
+}
+
+// 组件卸载时停止所有轮询
+onUnmounted(() => {
+  stopAllPolling();
+});
+
+function getWebhookUrl(appKey: string): string {
   const origin = window.location.origin;
-  return `${origin}/send/${appId}`;
+  return `${origin}/send/${appKey}`;
+}
+
+function getWebhookExample(appKey: string, type: 'curl' | 'post' | 'browser'): string {
+  const url = getWebhookUrl(appKey);
+  
+  switch (type) {
+    case 'curl':
+      return `curl "${url}?title=测试消息&desp=这是消息内容"`;
+    case 'post':
+      return `curl -X POST "${url}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"title":"测试消息","desp":"这是消息内容"}'`;
+    case 'browser':
+      return `${url}?title=测试消息&desp=这是消息内容`;
+    default:
+      return url;
+  }
 }
 
 function copyToClipboard(text: string) {

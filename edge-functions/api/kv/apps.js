@@ -3,7 +3,7 @@
 // KV Binding: APPS_KV (configured in EdgeOne Pages)
 
 // BUILD_KEY 在构建时被替换为实际值
-const BUILD_KEY = 'e10469d66c1f667b0a9ad0ecb6973f3f8764eff9ebc536dd26124863fdb4c5ed';
+const BUILD_KEY = 'b1c3c5436a24a36cf6a4190a6b0a049bc554017f31f2c31be65430202d10c5e7';
 
 /**
  * 验证内部 API 密钥
