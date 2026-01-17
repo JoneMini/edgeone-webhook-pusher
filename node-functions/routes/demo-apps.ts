@@ -10,6 +10,8 @@ import Router from '@koa/router';
 import type { AppContext } from '../types/context.js';
 import { demoAppService } from '../services/demo-app.service.js';
 import { appService } from '../services/app.service.js';
+import { bindCodeService } from '../services/bindcode.service.js';
+import { channelService } from '../services/channel.service.js';
 import { cleanupService } from '../services/cleanup.service.js';
 import { ApiError } from '../types/index.js';
 import type { PushMode, MessageType } from '../types/app.js';
@@ -136,6 +138,65 @@ router.delete('/:id', async (ctx: AppContext) => {
   const { id } = ctx.params;
   await demoAppService.delete(id);
   ctx.status = 204;
+});
+
+/**
+ * 生成绑定码
+ * @tag DemoApps
+ * @summary 为体验应用生成绑定码
+ * @description 生成一个 6 位数字绑定码，用于用户绑定微信。如果渠道支持，还会生成二维码
+ * @param {string} id - 应用 ID
+ * @returns {object} 绑定码信息（包含二维码 URL，如果可用）
+ */
+router.post('/:id/bindcode', async (ctx: AppContext) => {
+  const { id } = ctx.params;
+  
+  // 验证应用是否存在且为体验应用
+  const app = await demoAppService.getById(id);
+  if (!app) {
+    throw ApiError.notFound('Demo app not found');
+  }
+
+  // 获取渠道信息（用于生成二维码）
+  const channel = await channelService.getById(app.channelId);
+
+  // 生成绑定码（传入完整的输入参数和渠道信息）
+  const bindCode = await bindCodeService.create(
+    {
+      appId: id,
+      channelId: app.channelId,
+    },
+    channel || undefined
+  );
+
+  ctx.status = 201;
+  ctx.body = {
+    bindCode: bindCode.code,
+    expiresAt: bindCode.expiresAt,
+    qrCodeUrl: bindCode.qrCodeUrl, // 二维码图片 URL（如果可用）
+  };
+});
+
+/**
+ * 查询绑定码状态
+ * @tag DemoApps
+ * @summary 查询绑定码状态
+ * @description 查询指定绑定码的状态（pending/bound/expired）
+ * @param {string} id - 应用 ID
+ * @param {string} code - 绑定码
+ * @returns {object} 绑定码状态信息
+ */
+router.get('/:id/bindcode/:code', async (ctx: AppContext) => {
+  const { id, code } = ctx.params;
+
+  // 验证应用是否存在且为体验应用
+  const app = await demoAppService.getById(id);
+  if (!app) {
+    throw ApiError.notFound('Demo app not found');
+  }
+
+  const status = await bindCodeService.getStatus(code);
+  ctx.body = status;
 });
 
 export default router;

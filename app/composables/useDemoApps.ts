@@ -37,7 +37,7 @@ export function useDemoApps() {
     data?: any
   ): Promise<DemoApiResponse<T>> {
     try {
-      const response = await $fetch<T>(`${baseURL}${url}`, {
+      const response = await $fetch<any>(`${baseURL}${url}`, {
         method,
         body: data,
         headers: {
@@ -45,9 +45,19 @@ export function useDemoApps() {
         },
       });
 
+      // 后端使用 responseWrapper 中间件，返回格式为 { code, message, data }
+      // 我们需要提取嵌套的 data 字段
+      if (response && typeof response === 'object' && 'data' in response) {
+        return {
+          success: true,
+          data: response.data as T,
+        };
+      }
+
+      // 如果没有包装，直接返回
       return {
         success: true,
-        data: response,
+        data: response as T,
       };
     } catch (error: any) {
       return {
