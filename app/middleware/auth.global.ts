@@ -24,14 +24,6 @@ const API_PREFIXES = [
 ];
 
 export default defineNuxtRouteMiddleware((to) => {
-  const config = useRuntimeConfig();
-  const isDemoMode = config.public.demoMode;
-
-  // 在体验模式下，根路径 / 不需要认证（体验前端）
-  if (isDemoMode && to.path === '/') {
-    return;
-  }
-
   // Skip auth check for API routes (handled by backend)
   if (API_PREFIXES.some(prefix => to.path.startsWith(prefix))) {
     return;
@@ -39,6 +31,15 @@ export default defineNuxtRouteMiddleware((to) => {
 
   // Skip auth check for public pages
   if (PUBLIC_PATHS.some(path => to.path === path || to.path.startsWith(path))) {
+    return;
+  }
+
+  // 在体验模式下，根路径 / 不需要认证（体验前端）
+  const config = useRuntimeConfig();
+  const isDemoMode = config.public.demoMode;
+  
+  if (isDemoMode && to.path === '/') {
+    console.log('[Auth Middleware] Demo mode enabled, skipping auth for root path');
     return;
   }
 
@@ -53,9 +54,9 @@ export default defineNuxtRouteMiddleware((to) => {
   auth.init();
 
   // Redirect to login if not authenticated
-  // 在体验模式下，重定向到 /admin/login
   if (!auth.isLoggedIn) {
     const loginPath = isDemoMode ? '/admin/login' : '/login';
+    console.log('[Auth Middleware] Not logged in, redirecting to:', loginPath);
     return navigateTo(loginPath);
   }
 });

@@ -19,6 +19,7 @@
   },
   "scripts": {
     "dev": "nuxt dev",
+    "dev:demo": "DEMO_MODE=true nuxt dev",
     "dev:node": "tsx scripts/dev-server.ts",
     "dev:edgeone": "edgeone pages dev",
     "prebuild": "tsx scripts/generate-internal-key.ts",
