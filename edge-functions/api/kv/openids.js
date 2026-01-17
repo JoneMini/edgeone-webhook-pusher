@@ -3,7 +3,7 @@
 // KV Binding: OPENIDS_KV (configured in EdgeOne Pages)
 
 // BUILD_KEY 在构建时被替换为实际值
-const BUILD_KEY = '2722d2d41fd469f109f2bde721e01fd18526323e53e78e88684ddc6c77f30f6c';
+const BUILD_KEY = 'e10469d66c1f667b0a9ad0ecb6973f3f8764eff9ebc536dd26124863fdb4c5ed';
 
 /**
  * 验证内部 API 密钥
