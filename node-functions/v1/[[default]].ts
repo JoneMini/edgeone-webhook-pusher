@@ -32,11 +32,11 @@ import {
 
 const app = new Koa();
 
-// KV Base URL 中间件（必须在所有业务逻辑之前）
-app.use(kvBaseUrlMiddleware);
-
 // 错误处理中间件（最外层）
 app.use(errorHandler);
+
+// KV Base URL 中间件（必须在业务逻辑之前，但在错误处理之后）
+app.use(kvBaseUrlMiddleware);
 
 // CORS 中间件
 app.use(cors);
