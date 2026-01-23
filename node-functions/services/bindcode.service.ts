@@ -91,7 +91,7 @@ class BindCodeService {
         }
       } catch (error) {
         // 创建二维码失败不影响绑定码生成（可能是订阅号或未认证服务号）
-        console.log('QR code creation skipped (may not be certified service account):', error);
+        // 静默失败
       }
     }
     

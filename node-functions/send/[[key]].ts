@@ -23,9 +23,6 @@ const app = new Koa();
 // 信任代理（EdgeOne 环境必需）
 app.proxy = true;
 
-// 验证 app.proxy 设置
-console.log('\x1b[36m[Send Init]\x1b[0m app.proxy is set to:', app.proxy);
-
 // CORS 中间件
 app.use(async (ctx, next) => {
   ctx.set('Access-Control-Allow-Origin', '*');
@@ -49,9 +46,6 @@ app.use(kvBaseUrlMiddleware);
 // 主处理逻辑
 app.use(async (ctx) => {
   const pathname = ctx.path;
-  console.log('\x1b[36m[Send]\x1b[0m Request path:', pathname);
-  console.log('\x1b[36m[Send]\x1b[0m Full URL:', ctx.url);
-  console.log('\x1b[36m[Send]\x1b[0m Method:', ctx.method);
 
   // 只允许 GET 和 POST
   if (ctx.method !== 'GET' && ctx.method !== 'POST') {
@@ -66,7 +60,6 @@ app.use(async (ctx) => {
 
   // 从 URL 提取 App Key
   const appKey = extractAppKey(pathname);
-  console.log('\x1b[36m[Send]\x1b[0m Extracted appKey:', appKey);
   
   if (!appKey) {
     ctx.status = 400;

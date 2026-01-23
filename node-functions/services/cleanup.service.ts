@@ -27,8 +27,6 @@ class CleanupService {
       return;
     }
 
-    console.log('\x1b[36m[CleanupService]\x1b[0m Starting cleanup with baseUrl:', baseUrl || '(using env)');
-
     try {
       // 如果提供了 baseUrl，在其上下文中运行清理任务
       if (baseUrl) {
@@ -43,10 +41,10 @@ class CleanupService {
       // 只有清理成功才更新时间戳
       this.lastCleanupTime = now;
     } catch (error) {
-      console.error('[CleanupService] Cleanup failed:', error);
-      console.error('[CleanupService] baseUrl was:', baseUrl || '(not provided)');
-      console.error('[CleanupService] KV_BASE_URL env:', process.env.KV_BASE_URL || '(not set)');
-      // 清理失败时不更新时间戳，允许下次重试
+      // 静默失败，不影响主请求
+      if (process.env.DEBUG_KV_URL === 'true') {
+        console.error('[CleanupService] Cleanup failed:', error);
+      }
     }
   }
 
@@ -57,7 +55,10 @@ class CleanupService {
     // 动态导入避免循环依赖
     const { demoAppService } = await import('./demo-app.service.js');
     const count = await demoAppService.cleanupExpired();
-    console.log(`[CleanupService] Cleaned up ${count} expired demo apps`);
+    
+    if (process.env.DEBUG_KV_URL === 'true') {
+      console.log(`[CleanupService] Cleaned up ${count} expired demo apps`);
+    }
   }
 
   /**

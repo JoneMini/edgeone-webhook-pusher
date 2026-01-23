@@ -117,10 +117,6 @@ async function handleWeChatMessage(ctx: AppContext, channelId?: string) {
     xml = '';
   }
   
-  console.log('\x1b[36m[WeChat]\x1b[0m Received message, channelId:', channelId);
-  console.log('\x1b[36m[WeChat]\x1b[0m Body type:', typeof ctx.request.body);
-  console.log('\x1b[36m[WeChat]\x1b[0m XML body:', xml.substring(0, 500));
-
   // 解析 XML
   const msgType = extractXmlValue(xml, 'MsgType');
   const fromUser = extractXmlValue(xml, 'FromUserName');
@@ -128,8 +124,6 @@ async function handleWeChatMessage(ctx: AppContext, channelId?: string) {
   const content = extractXmlValue(xml, 'Content');
   const event = extractXmlValue(xml, 'Event');
   const eventKey = extractXmlValue(xml, 'EventKey');
-
-  console.log('\x1b[36m[WeChat]\x1b[0m Parsed:', { msgType, fromUser, content, event, eventKey });
 
   let replyContent = '';
 
@@ -237,10 +231,8 @@ async function handleWeChatMessage(ctx: AppContext, channelId?: string) {
     ctx.type = 'application/xml';
     // 回复时交换发送者和接收者：ToUserName 是用户，FromUserName 是公众号
     ctx.body = buildTextReply(fromUser, toUser, replyContent);
-    console.log('\x1b[32m[WeChat]\x1b[0m Reply XML sent');
   } else {
     // 无法构建回复时返回 success
-    console.log('\x1b[33m[WeChat]\x1b[0m Cannot build reply, missing toUser or fromUser');
     ctx.body = 'success';
   }
 }
@@ -268,12 +260,12 @@ async function saveInboundMessage(params: {
       event: params.event,
       createdAt: new Date().toISOString(),
     };
-    console.log('\x1b[36m[WeChat]\x1b[0m Saving inbound message:', JSON.stringify(message, null, 2));
     await messageService.saveMessage(message);
-    console.log('\x1b[32m[WeChat]\x1b[0m Message saved successfully:', message.id);
   } catch (error) {
-    console.error('\x1b[31m[WeChat]\x1b[0m Failed to save inbound message:', error);
     // 保存失败不影响消息处理
+    if (process.env.DEBUG_KV_URL === 'true') {
+      console.error('[WeChat] Failed to save inbound message:', error);
+    }
   }
 }
 

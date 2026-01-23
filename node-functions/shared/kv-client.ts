@@ -118,17 +118,19 @@ interface KVResponse<T = unknown> {
  * 调试日志
  */
 function debugLog(message: string, ...args: any[]): void {
-  if (process.env.DEBUG_KV_URL === 'true' || process.env.NODE_ENV === 'development') {
+  if (process.env.DEBUG_KV_URL === 'true') {
     console.log('\x1b[35m[KV Client]\x1b[0m', message, ...args);
   }
 }
 
 /**
- * 错误日志（总是打印）
+ * 错误日志（仅在调试模式）
  */
 function errorLog(message: string, details: any): void {
-  console.error('\x1b[31m[KV Client Error]\x1b[0m', message);
-  console.error('\x1b[31m[KV Client Error]\x1b[0m Details:', JSON.stringify(details, null, 2));
+  if (process.env.DEBUG_KV_URL === 'true') {
+    console.error('\x1b[31m[KV Client Error]\x1b[0m', message);
+    console.error('\x1b[31m[KV Client Error]\x1b[0m Details:', JSON.stringify(details, null, 2));
+  }
 }
 
 /**
@@ -152,15 +154,12 @@ function createKVClient<T = unknown>(namespace: string): KVOperations<T> {
         debugLog(`GET ${namespace}/${key} response:`, data);
         
         if (!data.success) {
-          // 错误时打印详细信息
           errorLog(`KV GET failed for ${namespace}/${key}`, {
             baseUrl,
             url,
             key,
             namespace,
             error: data.error,
-            envKvBaseUrl: process.env.KV_BASE_URL || '(not set)',
-            asyncStorageUrl: asyncLocalStorage.getStore() || '(not set)',
           });
           throw new Error(data.error || 'KV get failed');
         }
@@ -174,8 +173,6 @@ function createKVClient<T = unknown>(namespace: string): KVOperations<T> {
             key,
             namespace,
             error: error.message,
-            envKvBaseUrl: process.env.KV_BASE_URL || '(not set)',
-            asyncStorageUrl: asyncLocalStorage.getStore() || '(not set)',
           });
         }
         throw error;

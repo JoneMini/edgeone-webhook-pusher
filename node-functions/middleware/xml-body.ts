@@ -38,9 +38,8 @@ export async function xmlBody(ctx: Context, next: Next): Promise<void> {
     try {
       const body = await getRawBody(ctx);
       (ctx.request as any).body = body;
-      console.log('\x1b[36m[XML Body]\x1b[0m Parsed XML body, length:', body.length);
     } catch (error) {
-      console.error('\x1b[31m[XML Body]\x1b[0m Failed to parse XML body:', error);
+      console.error('[XML Body] Failed to parse XML body:', error);
     }
   }
   
