@@ -15,21 +15,38 @@
 
 // 导入构建时生成的密钥配置
 import keyConfig from '../../shared/internal-key.json' with { type: 'json' };
+import { AsyncLocalStorage } from 'async_hooks';
 
-// Store for dynamic base URL (set from request context)
-let dynamicBaseUrl: string | null = null;
+// AsyncLocalStorage for storing base URL per request
+const asyncLocalStorage = new AsyncLocalStorage<string>();
 
 /**
  * Set the base URL dynamically from request context
  * 用于在请求上下文中设置 baseUrl
  */
 export function setKVBaseUrl(url: string): void {
-  dynamicBaseUrl = url;
+  // 在 AsyncLocalStorage 中存储 baseUrl
+  const store = asyncLocalStorage.getStore();
+  if (store !== undefined) {
+    // 如果已经在 AsyncLocalStorage 上下文中，无法直接设置
+    // 需要通过 runKVOperation 来设置
+    console.warn('[KV Client] setKVBaseUrl called within AsyncLocalStorage context');
+  }
+}
+
+/**
+ * Run a KV operation with a specific base URL
+ * 在指定的 baseUrl 上下文中运行 KV 操作
+ */
+export function runKVOperation<T>(baseUrl: string, fn: () => T | Promise<T>): Promise<T> {
+  return asyncLocalStorage.run(baseUrl, async () => {
+    return await fn();
+  });
 }
 
 /**
  * Get the base URL for KV API
- * 优先级：环境变量 KV_BASE_URL > 动态设置的 baseUrl > 空字符串（同源请求）
+ * 优先级：环境变量 KV_BASE_URL > AsyncLocalStorage > 空字符串（同源请求）
  */
 function getBaseUrl(): string {
   const envUrl = process.env.KV_BASE_URL;
@@ -39,8 +56,14 @@ function getBaseUrl(): string {
     return envUrl.trim();
   }
   
-  // 否则使用动态设置的 baseUrl（从请求上下文中获取）
-  return dynamicBaseUrl || '';
+  // 从 AsyncLocalStorage 获取
+  const contextUrl = asyncLocalStorage.getStore();
+  if (contextUrl) {
+    return contextUrl;
+  }
+  
+  // 返回空字符串（同源请求）
+  return '';
 }
 
 /**
@@ -92,16 +115,32 @@ interface KVResponse<T = unknown> {
 }
 
 /**
+ * 调试日志
+ */
+function debugLog(message: string, ...args: any[]): void {
+  if (process.env.DEBUG_KV_URL === 'true' || process.env.NODE_ENV === 'development') {
+    console.log('\x1b[35m[KV Client]\x1b[0m', message, ...args);
+  }
+}
+
+/**
  * Create a typed KV client for a specific namespace
  */
 function createKVClient<T = unknown>(namespace: string): KVOperations<T> {
   return {
     async get<R = T>(key: string): Promise<R | null> {
-      const baseUrl = `${getBaseUrl()}/api/kv/${namespace}`;
-      const res = await fetch(`${baseUrl}?action=get&key=${encodeURIComponent(key)}`, {
+      const baseUrl = getBaseUrl();
+      const url = `${baseUrl}/api/kv/${namespace}?action=get&key=${encodeURIComponent(key)}`;
+      
+      debugLog(`GET ${namespace}/${key}`, { baseUrl, url });
+      
+      const res = await fetch(url, {
         headers: getAuthHeaders(),
       });
       const data = await res.json() as KVResponse<R>;
+      
+      debugLog(`GET ${namespace}/${key} response:`, data);
+      
       if (!data.success) {
         throw new Error(data.error || 'KV get failed');
       }

@@ -11,7 +11,7 @@
  */
 
 import type { Context, Next } from 'koa';
-import { setKVBaseUrl } from '../shared/kv-client.js';
+import { runKVOperation } from '../shared/kv-client.js';
 
 /**
  * 从请求上下文中提取 baseUrl
@@ -57,7 +57,6 @@ export function extractBaseUrl(ctx: Context): string {
  */
 export async function kvBaseUrlMiddleware(ctx: Context, next: Next): Promise<void> {
   const baseUrl = extractBaseUrl(ctx);
-  setKVBaseUrl(baseUrl);
   
   // 调试日志（仅在开发环境或启用调试时）
   if (process.env.NODE_ENV === 'development' || process.env.DEBUG_KV_URL === 'true') {
@@ -70,5 +69,6 @@ export async function kvBaseUrlMiddleware(ctx: Context, next: Next): Promise<voi
     });
   }
   
-  await next();
+  // 使用 AsyncLocalStorage 运行后续中间件
+  await runKVOperation(baseUrl, () => next());
 }
