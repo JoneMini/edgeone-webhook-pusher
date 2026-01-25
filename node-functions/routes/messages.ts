@@ -29,51 +29,81 @@ interface UserCache {
 }
 
 /**
- * 丰富消息数据，添加应用名称和用户信息
+ * 丰富消息数据，添加应用名称和用户信息（优化版）
  */
 async function enrichMessages(messages: Message[]): Promise<Message[]> {
-  const appCache: AppCache = {};
-  const userCache: UserCache = {};
+  if (messages.length === 0) return [];
 
-  const enriched: Message[] = [];
+  // 批量收集需要查询的 ID
+  const appIds = new Set<string>();
+  const channelOpenIds = new Map<string, Set<string>>(); // channelId -> Set<openId>
 
   for (const msg of messages) {
+    if (msg.appId) {
+      appIds.add(msg.appId);
+    }
+    if (msg.direction === 'inbound' && msg.openId && msg.channelId) {
+      if (!channelOpenIds.has(msg.channelId)) {
+        channelOpenIds.set(msg.channelId, new Set());
+      }
+      channelOpenIds.get(msg.channelId)!.add(msg.openId);
+    }
+  }
+
+  // 批量查询应用信息
+  const appCache: AppCache = {};
+  const appPromises = Array.from(appIds).map(async (appId) => {
+    const app = await appService.getById(appId);
+    appCache[appId] = app;
+  });
+  await Promise.all(appPromises);
+
+  // 批量查询用户信息
+  const userCache: UserCache = {};
+  const userPromises: Promise<void>[] = [];
+  
+  for (const [channelId, openIds] of channelOpenIds.entries()) {
+    // 获取该渠道下的所有应用（只查询一次）
+    const channelAppsPromise = appService.listByChannel(channelId).then(async (apps) => {
+      // 对每个 openId，尝试从该渠道的应用中查找用户信息
+      for (const openId of openIds) {
+        const cacheKey = `${channelId}:${openId}`;
+        
+        // 并行查询所有应用中的该 openId
+        const openIdPromises = apps.map(app => 
+          openidService.findByOpenId(app.id, openId)
+        );
+        const openIdRecords = await Promise.all(openIdPromises);
+        
+        // 找到第一个有用户信息的记录
+        const userInfo = openIdRecords.find(record => 
+          record && (record.nickname || record.avatar)
+        );
+        
+        userCache[cacheKey] = userInfo ? {
+          nickname: userInfo.nickname,
+          avatar: userInfo.avatar,
+        } : null;
+      }
+    });
+    
+    userPromises.push(channelAppsPromise);
+  }
+  
+  await Promise.all(userPromises);
+
+  // 填充消息数据
+  const enriched: Message[] = messages.map(msg => {
     const enrichedMsg = { ...msg };
 
     // 填充应用名称
-    if (msg.appId) {
-      if (!(msg.appId in appCache)) {
-        appCache[msg.appId] = await appService.getById(msg.appId);
-      }
-      const app = appCache[msg.appId];
-      if (app) {
-        enrichedMsg.appName = app.name;
-      }
+    if (msg.appId && appCache[msg.appId]) {
+      enrichedMsg.appName = appCache[msg.appId]!.name;
     }
 
-    // 填充用户信息（收到的消息）
+    // 填充用户信息
     if (msg.direction === 'inbound' && msg.openId && msg.channelId) {
-      // 尝试从所有应用中查找该 openId 的用户信息
-      // 由于 openId 是按应用存储的，我们需要遍历查找
       const cacheKey = `${msg.channelId}:${msg.openId}`;
-      if (!(cacheKey in userCache)) {
-        // 获取该渠道下所有应用
-        const apps = await appService.listByChannel(msg.channelId);
-        let userInfo: { nickname?: string; avatar?: string } | null = null;
-        
-        for (const app of apps) {
-          const openIdRecord = await openidService.findByOpenId(app.id, msg.openId);
-          if (openIdRecord && (openIdRecord.nickname || openIdRecord.avatar)) {
-            userInfo = {
-              nickname: openIdRecord.nickname,
-              avatar: openIdRecord.avatar,
-            };
-            break;
-          }
-        }
-        userCache[cacheKey] = userInfo;
-      }
-      
       const user = userCache[cacheKey];
       if (user) {
         enrichedMsg.userNickname = user.nickname;
@@ -81,8 +111,8 @@ async function enrichMessages(messages: Message[]): Promise<Message[]> {
       }
     }
 
-    enriched.push(enrichedMsg);
-  }
+    return enrichedMsg;
+  });
 
   return enriched;
 }
