@@ -93,7 +93,7 @@ class MessageService {
   }
 
   /**
-   * 分页查询消息历史
+   * 分页查询消息历史（优化版 - 只查询当前页数据）
    */
   async list(options: ListOptions = {}): Promise<ListResult> {
     const { page = 1, pageSize = 20, channelId, appId, openId, direction, startDate, endDate } = options;
@@ -110,13 +110,44 @@ class MessageService {
       ids = (await messagesKV.get<string[]>(KVKeys.MESSAGE_LIST)) || [];
     }
 
-    // 获取所有消息数据
-    const allMessages: Message[] = [];
-    for (const id of ids) {
-      const data = await messagesKV.get<Message>(KVKeys.MESSAGE(id));
-      if (data) {
-        allMessages.push(data);
+    // 如果没有其他筛选条件，直接分页返回（最优情况）
+    if (!direction && !startDate && !endDate && (!channelId || openId || appId) && (!appId || openId)) {
+      const total = ids.length;
+      const startIdx = (page - 1) * pageSize;
+      const pageIds = ids.slice(startIdx, startIdx + pageSize);
+      
+      // 只查询当前页的消息
+      const messages: Message[] = [];
+      const messagePromises = pageIds.map(id => messagesKV.get<Message>(KVKeys.MESSAGE(id)));
+      const messageResults = await Promise.all(messagePromises);
+      
+      for (const data of messageResults) {
+        if (data) {
+          messages.push(data);
+        }
       }
+      
+      return { messages, total, page, pageSize };
+    }
+
+    // 有额外筛选条件时，需要查询所有消息进行筛选
+    // 但我们可以分批查询以提高性能
+    const batchSize = 100;
+    const allMessages: Message[] = [];
+    
+    for (let i = 0; i < ids.length; i += batchSize) {
+      const batchIds = ids.slice(i, i + batchSize);
+      const batchPromises = batchIds.map(id => messagesKV.get<Message>(KVKeys.MESSAGE(id)));
+      const batchResults = await Promise.all(batchPromises);
+      
+      for (const data of batchResults) {
+        if (data) {
+          allMessages.push(data);
+        }
+      }
+      
+      // 如果已经收集到足够多的消息（超过当前页需要的数量），可以提前停止
+      // 但由于需要筛选，我们还是需要继续查询
     }
 
     // 筛选
