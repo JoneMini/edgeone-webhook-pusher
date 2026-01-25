@@ -7,6 +7,35 @@
     </div>
 
     <div v-else class="space-y-6">
+      <!-- Reset Admin Token -->
+      <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
+        <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
+          <span class="font-medium">登录密钥</span>
+        </div>
+        <div class="p-4">
+          <div class="space-y-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">当前密钥</label>
+              <code class="block text-xs bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded">{{ maskedToken }}</code>
+            </div>
+            <div class="flex items-start gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+              <Icon icon="heroicons:information-circle" class="text-yellow-500 text-lg shrink-0 mt-0.5" />
+              <div class="text-xs text-yellow-700 dark:text-yellow-400">
+                <div class="font-medium mb-1">关于密钥重置</div>
+                <div>重置密钥后，旧密钥将立即失效。您需要使用新密钥重新登录系统。</div>
+              </div>
+            </div>
+            <button
+              class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
+              @click="showResetModal = true"
+            >
+              <Icon icon="heroicons:arrow-path" class="text-base" />
+              重置密钥
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Channel Link -->
       <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
         <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-800">
@@ -114,6 +143,9 @@
         </div>
       </div>
     </div>
+
+    <!-- Reset Token Modal -->
+    <ResetTokenModal :show="showResetModal" @close="showResetModal = false" @success="handleResetSuccess" />
   </div>
 </template>
 
@@ -131,6 +163,8 @@ const toast = useToast();
 const loading = ref(true);
 const saving = ref(false);
 const expandedHelp = ref<number | null>(null);
+const showResetModal = ref(false);
+const currentAdminToken = ref('');
 
 const formData = reactive({
   rateLimit: {
@@ -139,6 +173,12 @@ const formData = reactive({
   retention: {
     days: 30,
   },
+});
+
+const maskedToken = computed(() => {
+  if (!currentAdminToken.value) return '***';
+  if (currentAdminToken.value.length <= 8) return '*'.repeat(currentAdminToken.value.length);
+  return currentAdminToken.value.slice(0, 4) + '*'.repeat(currentAdminToken.value.length - 8) + currentAdminToken.value.slice(-4);
 });
 
 const helpItems = [
@@ -174,6 +214,7 @@ async function loadConfig() {
     if (res.data) {
       formData.rateLimit.perMinute = res.data.rateLimit?.perMinute || 5;
       formData.retention.days = res.data.retention?.days || 30;
+      currentAdminToken.value = res.data.adminToken || '';
     }
   } catch (e: unknown) {
     const err = e as Error;
@@ -199,6 +240,15 @@ async function handleSave() {
   } finally {
     saving.value = false;
   }
+}
+
+function handleResetSuccess(newToken: string) {
+  currentAdminToken.value = newToken;
+  toast.add({ title: '密钥已重置，请使用新密钥重新登录', color: 'success' });
+  // 可选：自动登出用户，强制使用新密钥登录
+  // setTimeout(() => {
+  //   navigateTo('/login');
+  // }, 2000);
 }
 
 onMounted(loadConfig);

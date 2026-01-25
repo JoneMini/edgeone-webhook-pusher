@@ -35,3 +35,11 @@ export interface InitResult {
 export interface ValidateTokenResult {
   valid: boolean;
 }
+
+/**
+ * 重置令牌结果
+ */
+export interface ResetTokenResult {
+  adminToken: string;
+  message: string;
+}

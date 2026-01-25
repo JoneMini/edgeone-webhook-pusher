@@ -166,6 +166,9 @@
                 <Icon icon="heroicons:clipboard" class="text-base" />
               </button>
             </div>
+
+            <!-- KV_BASE_URL Notice -->
+            <KvBaseUrlNotice context="app" />
           </div>
 
           <!-- Tabs -->

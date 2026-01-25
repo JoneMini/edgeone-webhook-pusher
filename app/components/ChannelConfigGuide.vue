@@ -91,6 +91,9 @@
             <div class="text-xs text-gray-400 dark:text-gray-500 mt-2">
               点击「提交」保存配置。配置成功后，用户发送的消息将转发到本系统。
             </div>
+
+            <!-- KV_BASE_URL Notice -->
+            <KvBaseUrlNotice context="channel" />
           </div>
         </div>
 

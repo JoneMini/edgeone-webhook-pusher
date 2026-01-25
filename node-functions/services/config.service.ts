@@ -3,7 +3,7 @@
  */
 
 import { configKV } from '../shared/kv-client.js';
-import { now } from '../shared/utils.js';
+import { now, generateAdminToken } from '../shared/utils.js';
 import type { SystemConfig } from '../types/index.js';
 import { KVKeys, DefaultConfig } from '../types/index.js';
 
@@ -107,6 +107,40 @@ class ConfigService {
       ...config,
       adminToken: config.adminToken ? '***' : undefined,
     };
+  }
+
+  /**
+   * 重置管理员令牌
+   * 生成新的 adminToken 并更新配置，保持其他配置字段不变
+   * @returns 包含新 adminToken 的配置对象
+   * @throws 如果配置未初始化或更新失败
+   */
+  async resetAdminToken(): Promise<SystemConfig> {
+    // 获取当前配置
+    const config = await this.getConfig();
+    if (!config) {
+      throw new Error('Configuration not initialized');
+    }
+
+    // 生成新的 adminToken
+    const newAdminToken = generateAdminToken();
+
+    // 创建更新后的配置，保持其他字段不变
+    const updatedConfig: SystemConfig = {
+      ...config,
+      adminToken: newAdminToken,
+      updatedAt: now(),
+    };
+
+    try {
+      // 保存更新后的配置
+      await configKV.put(KVKeys.CONFIG, updatedConfig);
+      return updatedConfig;
+    } catch (error) {
+      // 如果保存失败，抛出错误（配置保持不变）
+      console.error('Failed to reset admin token:', error);
+      throw new Error('Failed to update configuration');
+    }
   }
 }
 

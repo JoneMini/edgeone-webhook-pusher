@@ -55,4 +55,28 @@ router.put('/', async (ctx: AppContext) => {
   ctx.body = configService.maskConfig(updatedConfig);
 });
 
+/**
+ * 重置管理员令牌
+ * @tag Config
+ * @summary 重置管理员令牌
+ * @description 生成新的管理员令牌并更新系统配置。旧令牌将立即失效。
+ * @returns {object} 包含新管理员令牌和提示信息的对象
+ */
+router.post('/reset-token', async (ctx: AppContext) => {
+  try {
+    const updatedConfig = await configService.resetAdminToken();
+    
+    ctx.body = {
+      adminToken: updatedConfig.adminToken,
+      message: '管理员令牌已重置。请妥善保管新令牌，旧令牌已失效。',
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Configuration not initialized') {
+      throw ApiError.badRequest('系统配置未初始化', ErrorCodes.INVALID_CONFIG);
+    }
+    // 其他错误（如 KV 存储失败）
+    throw ApiError.internal('重置令牌失败，请稍后重试');
+  }
+});
+
 export default router;
