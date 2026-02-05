@@ -75,16 +75,13 @@ class OpenIdService {
    */
   async listByApp(appId: string): Promise<OpenID[]> {
     const ids = (await openidsKV.get<string[]>(KVKeys.OPENID_APP(appId))) || [];
-    const records: OpenID[] = [];
+    
+    // 优化：使用 Promise.all 并行获取所有记录，而不是串行 await
+    const promises = ids.map(id => openidsKV.get<OpenID>(KVKeys.OPENID(id)));
+    const results = await Promise.all(promises);
 
-    for (const id of ids) {
-      const record = await openidsKV.get<OpenID>(KVKeys.OPENID(id));
-      if (record) {
-        records.push(record);
-      }
-    }
-
-    return records;
+    // 过滤掉为空的记录
+    return results.filter((record): record is OpenID => record !== null);
   }
 
   /**
