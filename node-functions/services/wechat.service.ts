@@ -18,6 +18,7 @@ const TOKEN_STATUS_TTL = 86400;
 const DEFAULT_AVATAR = '';
 
 // 内存缓存：减少 KV 读取次数
+// Key: wechat_access_token:{appId}, Value: { accessToken, expiresAt }
 const memoryTokenCache = new Map<string, { accessToken: string; expiresAt: number }>();
 
 /**
@@ -291,9 +292,13 @@ export async function getUserInfo(channel: Channel, openId: string): Promise<{ o
 /**
  * 验证渠道配置是否有效
  * @param channel - The channel containing WeChat credentials
- * @returns 验证结果
+ * @returns 验证结果，包含有效性、过期时间或错误信息
  */
 export async function verifyChannelConfig(channel: Channel): Promise<{ valid: boolean; expiresIn?: number; error?: string; errorCode?: number }> {
+  if (!channel) {
+    return { valid: false, error: '渠道不存在' };
+  }
+
   // 复用 getAccessToken 逻辑（强制刷新）来验证
   try {
     const token = await getAccessToken(channel, true);
@@ -313,6 +318,7 @@ export async function verifyChannelConfig(channel: Channel): Promise<{ valid: bo
       errorCode: status?.errorCode 
     };
   } catch (error) {
+    console.error('Error verifying channel config:', error);
     return { valid: false, error: '验证异常' };
   }
 }
@@ -364,6 +370,7 @@ export async function createQRCode(
     }
 
     if (!data.ticket || !data.url) {
+      console.error('Invalid QR code response:', data);
       return null;
     }
 
@@ -378,10 +385,16 @@ export async function createQRCode(
   }
 }
 
+/**
+ * 通过 ticket 获取二维码图片 URL
+ */
 export function getQRCodeImageUrl(ticket: string): string {
   return `https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=${encodeURIComponent(ticket)}`;
 }
 
+/**
+ * 发送客服文本消息（带 token 失效自动重试）
+ */
 export async function sendCustomMessage(
   channel: Channel,
   openId: string,
@@ -394,8 +407,8 @@ export async function sendCustomMessage(
 
   const result = await doSendCustomMessage(accessToken, openId, content);
   
+  // Token 失效，强制刷新后重试一次
   if (!result.success && (result.errorCode === 40001 || result.errorCode === 42001)) {
-    // 强制刷新 Token
     const newToken = await getAccessToken(channel, true);
     if (newToken) {
       return doSendCustomMessage(newToken, openId, content);
@@ -405,6 +418,9 @@ export async function sendCustomMessage(
   return result;
 }
 
+/**
+ * 发送客服文本消息（内部方法）
+ */
 async function doSendCustomMessage(
   accessToken: string,
   openId: string,
@@ -441,6 +457,9 @@ async function doSendCustomMessage(
   }
 }
 
+/**
+ * 发送模板消息（带 token 失效自动重试）
+ */
 export async function sendTemplateMessage(
   channel: Channel,
   openId: string,
@@ -454,6 +473,7 @@ export async function sendTemplateMessage(
 
   const result = await doSendTemplateMessage(accessToken, openId, templateId, data);
   
+  // Token 失效，强制刷新后重试一次
   if (!result.success && (result.errorCode === 40001 || result.errorCode === 42001)) {
     const newToken = await getAccessToken(channel, true);
     if (newToken) {
@@ -464,6 +484,9 @@ export async function sendTemplateMessage(
   return result;
 }
 
+/**
+ * 发送模板消息（内部方法）
+ */
 async function doSendTemplateMessage(
   accessToken: string,
   openId: string,
