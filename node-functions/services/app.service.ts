@@ -8,6 +8,11 @@ import { generateAppId, generateAppKey, now } from '../shared/utils.js';
 import type { App, CreateAppInput, UpdateAppInput, Channel, OpenID } from '../types/index.js';
 import { KVKeys, PushModes, MessageTypes, ApiError, ErrorCodes } from '../types/index.js';
 
+// 内存缓存
+const cacheByKey = new Map<string, { app: App; expires: number }>();
+const cacheById = new Map<string, { app: App; expires: number }>();
+const CACHE_TTL = 60 * 1000; // 60秒缓存
+
 class AppService {
   /**
    * 创建应用
@@ -70,40 +75,60 @@ class AppService {
     list.push(id);
     await appsKV.put(KVKeys.APP_LIST, list);
 
+    // 注意：创建后暂不写入缓存，等待读取时自动载入即可
     return app;
   }
 
   /**
-   * 根据 ID 获取应用
+   * 根据 ID 获取应用 (带缓存)
    */
   async getById(id: string): Promise<App | null> {
-    return appsKV.get<App>(KVKeys.APP(id));
+    // 1. 查缓存
+    const cached = cacheById.get(id);
+    if (cached && cached.expires > Date.now()) {
+      return cached.app;
+    }
+
+    // 2. 查 KV
+    const app = await appsKV.get<App>(KVKeys.APP(id));
+    if (app) {
+      // 3. 写缓存
+      const expires = Date.now() + CACHE_TTL;
+      cacheById.set(id, { app, expires });
+      cacheByKey.set(app.key, { app, expires });
+    }
+    return app;
   }
 
   /**
-   * 根据 Key 获取应用
+   * 根据 Key 获取应用 (带缓存)
    */
   async getByKey(key: string): Promise<App | null> {
+    // 1. 查缓存
+    const cached = cacheByKey.get(key);
+    if (cached && cached.expires > Date.now()) {
+      return cached.app;
+    }
+
+    // 2. 查索引
     const id = await appsKV.get<string>(KVKeys.APP_INDEX(key));
     if (!id) return null;
+    
+    // 3. 复用 getById
     return this.getById(id);
   }
 
   /**
-   * 获取所有应用列表
+   * 获取所有应用列表 (并行优化)
    */
   async list(): Promise<App[]> {
     const ids = (await appsKV.get<string[]>(KVKeys.APP_LIST)) || [];
-    const apps: App[] = [];
+    
+    // 优化：使用 Promise.all 并行获取
+    const promises = ids.map(id => appsKV.get<App>(KVKeys.APP(id)));
+    const results = await Promise.all(promises);
 
-    for (const id of ids) {
-      const app = await appsKV.get<App>(KVKeys.APP(id));
-      if (app) {
-        apps.push(app);
-      }
-    }
-
-    return apps;
+    return results.filter((app): app is App => app !== null);
   }
 
   /**
@@ -144,6 +169,12 @@ class AppService {
     app.updatedAt = now();
 
     await appsKV.put(KVKeys.APP(id), app);
+
+    // 更新内存缓存
+    const expires = Date.now() + CACHE_TTL;
+    cacheById.set(id, { app, expires });
+    cacheByKey.set(app.key, { app, expires });
+
     return app;
   }
 
@@ -155,6 +186,10 @@ class AppService {
     if (!app) {
       throw ApiError.notFound('App not found', ErrorCodes.APP_NOT_FOUND);
     }
+
+    // 清除缓存
+    cacheById.delete(id);
+    cacheByKey.delete(app.key);
 
     // 级联删除该应用下的所有 OpenID
     await this.deleteOpenIDs(id);
@@ -177,6 +212,8 @@ class AppService {
   async deleteOpenIDs(appId: string): Promise<void> {
     const openIdList = (await openidsKV.get<string[]>(KVKeys.OPENID_APP(appId))) || [];
 
+    // 这里也可以使用 Promise.all 进行并行删除优化，但删除操作通常对时效要求不如查询高
+    // 保持串行更为稳妥，避免瞬间并发过高
     for (const oidId of openIdList) {
       const openIdRecord = await openidsKV.get<OpenID>(KVKeys.OPENID(oidId));
       if (openIdRecord) {
