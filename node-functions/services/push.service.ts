@@ -1,7 +1,6 @@
 /**
  * Push Service - 消息推送核心逻辑
- * 
- * 基于 App 配置处理推送逻辑：
+ * * 基于 App 配置处理推送逻辑：
  * - single 模式：发送给第一个绑定的 OpenID
  * - subscribe 模式：发送给所有绑定的 OpenID
  * - normal 消息类型：发送客服消息
@@ -25,7 +24,7 @@ class PushService {
     const pushId = generatePushId();
     const createdAt = now();
 
-    // 查找 App
+    // 1. 查找 App (优先走内存缓存)
     const app = await appService.getByKey(appKey);
     if (!app) {
       return {
@@ -37,21 +36,14 @@ class PushService {
       };
     }
 
-    // 获取 App 下的 OpenID 列表
-    const openIds = await openidService.listByApp(app.id);
-    if (openIds.length === 0) {
-      return {
-        pushId,
-        total: 0,
-        success: 0,
-        failed: 0,
-        results: [],
-      };
-    }
+    // 2. 并行获取 OpenID 列表 和 渠道配置 (关键优化点)
+    // 减少一次完整的 KV 网络往返时间
+    const [openIds, channel] = await Promise.all([
+      openidService.listByApp(app.id),
+      channelService.getById(app.channelId)
+    ]);
 
-    // 获取渠道配置
-    const channel = await channelService.getById(app.channelId);
-    if (!channel) {
+    if (openIds.length === 0 || !channel) {
       return {
         pushId,
         total: 0,
@@ -68,12 +60,9 @@ class PushService {
       targetOpenIds = [openIds[0]];
     }
 
-    // 发送消息
-    const results: DeliveryResult[] = [];
-    let successCount = 0;
-    let failedCount = 0;
-
-    for (const openIdRecord of targetOpenIds) {
+    // 3. 并发发送消息到微信
+    // 使用 Promise.all 替代串行 for...of 循环，大幅降低群发耗时
+    const pushPromises = targetOpenIds.map(async (openIdRecord) => {
       try {
         let result: { success: boolean; msgId?: string; error?: string };
         
@@ -102,29 +91,30 @@ class PushService {
           );
         }
 
-        results.push({
+        return {
           openId: openIdRecord.openId,
           success: result.success,
           msgId: result.msgId,
           error: result.error,
-        });
+        } as DeliveryResult;
 
-        if (result.success) {
-          successCount++;
-        } else {
-          failedCount++;
-        }
       } catch (error) {
-        results.push({
+        return {
           openId: openIdRecord.openId,
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
-        });
-        failedCount++;
+        } as DeliveryResult;
       }
-    }
+    });
 
-    // 保存消息历史
+    const results = await Promise.all(pushPromises);
+    
+    // 统计结果
+    const successCount = results.filter(r => r.success).length;
+    const failedCount = results.filter(r => !r.success).length;
+
+    // 4. 保存消息历史
+    // messageService.saveMessage 内部已优化为并行写入
     const messageRecord: Message = {
       id: pushId,
       direction: 'outbound',
