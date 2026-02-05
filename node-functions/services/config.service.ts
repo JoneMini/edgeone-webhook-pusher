@@ -10,15 +10,36 @@ import { KVKeys, DefaultConfig } from '../types/index.js';
 /**
  * ConfigService - 管理应用配置
  * 只管理 adminToken、rateLimit 和 retention 设置
+ * 增加内存缓存以减少 KV 请求
  */
 class ConfigService {
+  // 内存缓存
+  private cache: { data: SystemConfig; expires: number } | null = null;
+  // 缓存有效期 60 秒
+  private readonly CACHE_TTL = 60 * 1000;
+
   /**
    * 获取应用配置（带默认值）
    */
   async getConfig(): Promise<SystemConfig | null> {
+    // 1. 检查缓存是否有效
+    if (this.cache && this.cache.expires > Date.now()) {
+      return this.cache.data;
+    }
+
+    // 2. 缓存无效，请求 KV
     const config = await configKV.get<SystemConfig>(KVKeys.CONFIG);
     if (!config) return null;
-    return this.applyDefaults(config);
+    
+    const processedConfig = this.applyDefaults(config);
+
+    // 3. 写入缓存
+    this.cache = {
+      data: processedConfig,
+      expires: Date.now() + this.CACHE_TTL
+    };
+
+    return processedConfig;
   }
 
   /**
@@ -41,6 +62,11 @@ class ConfigService {
    */
   async saveConfig(config: SystemConfig): Promise<void> {
     await configKV.put(KVKeys.CONFIG, config);
+    // 更新缓存
+    this.cache = {
+      data: config,
+      expires: Date.now() + this.CACHE_TTL
+    };
   }
 
   /**
@@ -72,6 +98,13 @@ class ConfigService {
     };
 
     await configKV.put(KVKeys.CONFIG, updatedConfig);
+    
+    // 更新本地缓存
+    this.cache = {
+      data: updatedConfig,
+      expires: Date.now() + this.CACHE_TTL
+    };
+
     return updatedConfig;
   }
 
@@ -79,7 +112,7 @@ class ConfigService {
    * 检查配置是否存在
    */
   async exists(): Promise<boolean> {
-    const config = await configKV.get<SystemConfig>(KVKeys.CONFIG);
+    const config = await this.getConfig();
     return config !== null;
   }
 
@@ -163,6 +196,13 @@ class ConfigService {
     try {
       // 保存更新后的配置
       await configKV.put(KVKeys.CONFIG, updatedConfig);
+      
+      // 更新缓存
+      this.cache = {
+        data: updatedConfig,
+        expires: Date.now() + this.CACHE_TTL
+      };
+
       return updatedConfig;
     } catch (error) {
       // 如果保存失败，抛出错误（配置保持不变）
