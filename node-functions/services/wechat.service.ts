@@ -1,10 +1,8 @@
 /**
  * WeChat Service
- * 
- * Handles WeChat API interactions including access token management
+ * * Handles WeChat API interactions including access token management
  * and user follow status checking.
- * 
- * All functions require a Channel parameter to support multi-channel scenarios.
+ * * All functions require a Channel parameter to support multi-channel scenarios.
  */
 
 import { configKV } from '../shared/kv-client.js';
@@ -18,6 +16,9 @@ const TOKEN_STATUS_TTL = 86400;
 
 // 默认头像 URL
 const DEFAULT_AVATAR = '';
+
+// 内存缓存：减少 KV 读取次数
+const memoryTokenCache = new Map<string, { accessToken: string; expiresAt: number }>();
 
 /**
  * 微信 API 错误码映射
@@ -113,7 +114,7 @@ export async function getTokenStatus(channelId: string): Promise<TokenStatus | n
 }
 
 /**
- * Get WeChat access token (cached in KV)
+ * Get WeChat access token (cached in KV and Memory)
  * @param channel - The channel containing WeChat credentials
  * @param forceRefresh - Force refresh token even if cached
  */
@@ -130,15 +131,28 @@ export async function getAccessToken(channel: Channel, forceRefresh = false): Pr
 
   const cacheKey = getAccessTokenCacheKey(channel);
 
-  // Try to get from cache (unless force refresh)
+  // 1. Try Memory Cache first (fastest)
+  if (!forceRefresh) {
+    const memCached = memoryTokenCache.get(cacheKey);
+    if (memCached && memCached.expiresAt > Date.now()) {
+      return memCached.accessToken;
+    }
+  }
+
+  // 2. Try KV Cache
   if (!forceRefresh) {
     const cached = await configKV.get<TokenCache>(cacheKey);
     if (cached?.accessToken && cached?.expiresAt > Date.now()) {
+      // Update memory cache
+      memoryTokenCache.set(cacheKey, {
+        accessToken: cached.accessToken,
+        expiresAt: cached.expiresAt
+      });
       return cached.accessToken;
     }
   }
 
-  // Fetch new access token
+  // 3. Fetch new access token from WeChat
   try {
     const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${appId}&secret=${appSecret}`;
     const res = await fetch(url);
@@ -146,7 +160,6 @@ export async function getAccessToken(channel: Channel, forceRefresh = false): Pr
 
     if (data.errcode) {
       console.error('Failed to get access token:', data);
-      // 更新状态为失败
       await updateTokenStatus(channel.id, {
         valid: false,
         lastRefreshAt: Date.now(),
@@ -173,10 +186,13 @@ export async function getAccessToken(channel: Channel, forceRefresh = false): Pr
       expiresAt,
     };
 
-    // Cache in KV with channel-specific key
+    // Update Memory Cache
+    memoryTokenCache.set(cacheKey, tokenData);
+
+    // Update KV Cache
     await configKV.put(cacheKey, tokenData, ACCESS_TOKEN_TTL);
 
-    // 更新状态为成功
+    // Update Status
     await updateTokenStatus(channel.id, {
       valid: true,
       lastRefreshAt: Date.now(),
@@ -257,7 +273,6 @@ export async function getUserInfo(channel: Channel, openId: string): Promise<{ o
       return null;
     }
 
-    // 处理空昵称和头像的默认值
     const nickname = data.nickname && data.nickname.trim() ? data.nickname : undefined;
     const avatar = data.headimgurl && data.headimgurl.trim() ? data.headimgurl : DEFAULT_AVATAR || undefined;
 
@@ -276,88 +291,34 @@ export async function getUserInfo(channel: Channel, openId: string): Promise<{ o
 /**
  * 验证渠道配置是否有效
  * @param channel - The channel containing WeChat credentials
- * @returns 验证结果，包含有效性、过期时间或错误信息
+ * @returns 验证结果
  */
 export async function verifyChannelConfig(channel: Channel): Promise<{ valid: boolean; expiresIn?: number; error?: string; errorCode?: number }> {
-  if (!channel) {
-    return { valid: false, error: '渠道不存在' };
-  }
-
-  const { appId, appSecret } = channel.config;
-  if (!appId || !appSecret) {
-    return { valid: false, error: '缺少 AppID 或 AppSecret' };
-  }
-
+  // 复用 getAccessToken 逻辑（强制刷新）来验证
   try {
-    const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${appId}&secret=${appSecret}`;
-    const res = await fetch(url);
-    const data = (await res.json()) as WeChatResponse;
-
-    if (data.errcode) {
-      // 更新状态为失败
-      await updateTokenStatus(channel.id, {
-        valid: false,
-        lastRefreshAt: Date.now(),
-        lastRefreshSuccess: false,
-        error: getWeChatErrorMessage(data.errcode),
-        errorCode: data.errcode,
-      });
-      return {
-        valid: false,
-        error: getWeChatErrorMessage(data.errcode),
-        errorCode: data.errcode,
-      };
+    const token = await getAccessToken(channel, true);
+    if (token) {
+       // 获取缓存的过期时间
+       const cacheKey = getAccessTokenCacheKey(channel);
+       const memCached = memoryTokenCache.get(cacheKey);
+       const expiresIn = memCached ? Math.floor((memCached.expiresAt - Date.now()) / 1000) : 7000;
+       return { valid: true, expiresIn };
     }
-
-    if (!data.access_token || !data.expires_in) {
-      await updateTokenStatus(channel.id, {
-        valid: false,
-        lastRefreshAt: Date.now(),
-        lastRefreshSuccess: false,
-        error: '获取 Access Token 失败',
-      });
-      return { valid: false, error: '获取 Access Token 失败' };
-    }
-
-    // 缓存 token
-    const cacheKey = getAccessTokenCacheKey(channel);
-    const expiresAt = Date.now() + (data.expires_in - 300) * 1000;
-    const tokenData: TokenCache = {
-      accessToken: data.access_token,
-      expiresAt,
-    };
-    await configKV.put(cacheKey, tokenData, ACCESS_TOKEN_TTL);
-
-    // 更新状态为成功
-    await updateTokenStatus(channel.id, {
-      valid: true,
-      lastRefreshAt: Date.now(),
-      lastRefreshSuccess: true,
-      expiresAt,
-    });
-
-    return {
-      valid: true,
-      expiresIn: data.expires_in,
+    
+    // 如果 token 为 null，说明验证失败，尝试获取最后一次的错误状态
+    const status = await getTokenStatus(channel.id);
+    return { 
+      valid: false, 
+      error: status?.error || '验证失败', 
+      errorCode: status?.errorCode 
     };
   } catch (error) {
-    console.error('Error verifying channel config:', error);
-    await updateTokenStatus(channel.id, {
-      valid: false,
-      lastRefreshAt: Date.now(),
-      lastRefreshSuccess: false,
-      error: '网络请求失败',
-    });
-    return { valid: false, error: '网络请求失败' };
+    return { valid: false, error: '验证异常' };
   }
 }
 
 /**
  * 创建带参数的临时二维码（仅认证服务号可用）
- * @param channel - 渠道配置
- * @param sceneStr - 场景值字符串（绑定码）
- * @param expireSeconds - 过期时间（秒），默认 300 秒（5分钟）
- * @returns 二维码 ticket 和 URL，或 null（如果失败）
  */
 export async function createQRCode(
   channel: Channel,
@@ -399,12 +360,10 @@ export async function createQRCode(
 
     if (data.errcode) {
       console.error('Failed to create QR code:', data);
-      // 48001 表示 API 未授权（非认证服务号）
       return null;
     }
 
     if (!data.ticket || !data.url) {
-      console.error('Invalid QR code response:', data);
       return null;
     }
 
@@ -419,21 +378,10 @@ export async function createQRCode(
   }
 }
 
-/**
- * 通过 ticket 获取二维码图片 URL
- * @param ticket - 二维码 ticket
- * @returns 二维码图片 URL
- */
 export function getQRCodeImageUrl(ticket: string): string {
   return `https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=${encodeURIComponent(ticket)}`;
 }
 
-/**
- * 发送客服文本消息（带 token 失效自动重试）
- * @param channel - 渠道配置
- * @param openId - 用户 OpenID
- * @param content - 消息内容
- */
 export async function sendCustomMessage(
   channel: Channel,
   openId: string,
@@ -446,8 +394,8 @@ export async function sendCustomMessage(
 
   const result = await doSendCustomMessage(accessToken, openId, content);
   
-  // Token 失效，强制刷新后重试一次
   if (!result.success && (result.errorCode === 40001 || result.errorCode === 42001)) {
+    // 强制刷新 Token
     const newToken = await getAccessToken(channel, true);
     if (newToken) {
       return doSendCustomMessage(newToken, openId, content);
@@ -457,9 +405,6 @@ export async function sendCustomMessage(
   return result;
 }
 
-/**
- * 发送客服文本消息（内部方法）
- */
 async function doSendCustomMessage(
   accessToken: string,
   openId: string,
@@ -496,13 +441,6 @@ async function doSendCustomMessage(
   }
 }
 
-/**
- * 发送模板消息（带 token 失效自动重试）
- * @param channel - 渠道配置
- * @param openId - 用户 OpenID
- * @param templateId - 模板 ID
- * @param data - 模板数据
- */
 export async function sendTemplateMessage(
   channel: Channel,
   openId: string,
@@ -516,7 +454,6 @@ export async function sendTemplateMessage(
 
   const result = await doSendTemplateMessage(accessToken, openId, templateId, data);
   
-  // Token 失效，强制刷新后重试一次
   if (!result.success && (result.errorCode === 40001 || result.errorCode === 42001)) {
     const newToken = await getAccessToken(channel, true);
     if (newToken) {
@@ -527,9 +464,6 @@ export async function sendTemplateMessage(
   return result;
 }
 
-/**
- * 发送模板消息（内部方法）
- */
 async function doSendTemplateMessage(
   accessToken: string,
   openId: string,
