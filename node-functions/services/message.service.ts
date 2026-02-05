@@ -1,7 +1,6 @@
 /**
  * Message Service - 消息历史记录管理
- * 
- * 支持按渠道、应用、用户、方向筛选消息历史
+ * * 支持按渠道、应用、用户、方向筛选消息历史
  */
 
 import { messagesKV } from '../shared/kv-client.js';
@@ -37,52 +36,47 @@ interface Stats {
 
 class MessageService {
   /**
-   * 保存消息记录
+   * 保存消息记录 (优化版：并行写入)
    */
   async saveMessage(message: Message): Promise<void> {
-    // 保存消息记录
-    await messagesKV.put(KVKeys.MESSAGE(message.id), message);
+    // 1. 保存消息本体
+    const savePromise = messagesKV.put(KVKeys.MESSAGE(message.id), message);
 
-    // 更新全局消息列表
-    const globalList = (await messagesKV.get<string[]>(KVKeys.MESSAGE_LIST)) || [];
-    globalList.unshift(message.id); // 新消息放在前面
-    // 限制列表长度，防止无限增长
-    if (globalList.length > 10000) {
-      globalList.length = 10000;
-    }
-    await messagesKV.put(KVKeys.MESSAGE_LIST, globalList);
+    // 定义更新列表的辅助函数
+    const updateList = async (key: string, msgId: string, limit: number) => {
+      const list = (await messagesKV.get<string[]>(key)) || [];
+      list.unshift(msgId);
+      if (list.length > limit) {
+        list.length = limit;
+      }
+      await messagesKV.put(key, list);
+    };
+
+    // 2. 并行更新所有索引列表
+    // 将原本串行的 4-5 次 KV 操作合并并发执行
+    const updatePromises: Promise<void>[] = [
+      savePromise,
+      // 更新全局列表
+      updateList(KVKeys.MESSAGE_LIST, message.id, 10000)
+    ];
 
     // 更新渠道消息列表
     if (message.channelId) {
-      const channelKey = `msg_channel:${message.channelId}`;
-      const channelList = (await messagesKV.get<string[]>(channelKey)) || [];
-      channelList.unshift(message.id);
-      if (channelList.length > 5000) {
-        channelList.length = 5000;
-      }
-      await messagesKV.put(channelKey, channelList);
+      updatePromises.push(updateList(`msg_channel:${message.channelId}`, message.id, 5000));
     }
 
     // 更新应用消息列表
     if (message.appId) {
-      const appList = (await messagesKV.get<string[]>(KVKeys.MESSAGE_APP(message.appId))) || [];
-      appList.unshift(message.id);
-      if (appList.length > 5000) {
-        appList.length = 5000;
-      }
-      await messagesKV.put(KVKeys.MESSAGE_APP(message.appId), appList);
+      updatePromises.push(updateList(KVKeys.MESSAGE_APP(message.appId), message.id, 5000));
     }
 
     // 更新用户消息列表
     if (message.openId) {
-      const openIdKey = `msg_openid:${message.openId}`;
-      const openIdList = (await messagesKV.get<string[]>(openIdKey)) || [];
-      openIdList.unshift(message.id);
-      if (openIdList.length > 1000) {
-        openIdList.length = 1000;
-      }
-      await messagesKV.put(openIdKey, openIdList);
+      updatePromises.push(updateList(`msg_openid:${message.openId}`, message.id, 1000));
     }
+
+    // 等待所有操作完成
+    await Promise.all(updatePromises);
   }
 
   /**
@@ -93,7 +87,7 @@ class MessageService {
   }
 
   /**
-   * 分页查询消息历史（优化版 - 只查询当前页数据）
+   * 分页查询消息历史
    */
   async list(options: ListOptions = {}): Promise<ListResult> {
     const { page = 1, pageSize = 20, channelId, appId, openId, direction, startDate, endDate } = options;
@@ -116,11 +110,11 @@ class MessageService {
       const startIdx = (page - 1) * pageSize;
       const pageIds = ids.slice(startIdx, startIdx + pageSize);
       
-      // 只查询当前页的消息
-      const messages: Message[] = [];
+      // 并行查询当前页的消息
       const messagePromises = pageIds.map(id => messagesKV.get<Message>(KVKeys.MESSAGE(id)));
       const messageResults = await Promise.all(messagePromises);
       
+      const messages: Message[] = [];
       for (const data of messageResults) {
         if (data) {
           messages.push(data);
@@ -130,11 +124,11 @@ class MessageService {
       return { messages, total, page, pageSize };
     }
 
-    // 有额外筛选条件时，需要查询所有消息进行筛选
-    // 但我们可以分批查询以提高性能
-    const batchSize = 100;
+    // 有额外筛选条件时，分批并行查询
+    const batchSize = 50; // 并发度控制
     const allMessages: Message[] = [];
     
+    // 分批处理防止并发过高
     for (let i = 0; i < ids.length; i += batchSize) {
       const batchIds = ids.slice(i, i + batchSize);
       const batchPromises = batchIds.map(id => messagesKV.get<Message>(KVKeys.MESSAGE(id)));
@@ -145,12 +139,9 @@ class MessageService {
           allMessages.push(data);
         }
       }
-      
-      // 如果已经收集到足够多的消息（超过当前页需要的数量），可以提前停止
-      // 但由于需要筛选，我们还是需要继续查询
     }
 
-    // 筛选
+    // 筛选逻辑保持不变
     let filtered = allMessages;
 
     // 按渠道筛选（如果不是通过渠道索引获取的）
@@ -243,7 +234,7 @@ class MessageService {
   }
 
   /**
-   * 获取统计数据
+   * 获取统计数据 (优化版：并发获取)
    */
   async getStats(): Promise<Stats> {
     const keys = await messagesKV.listAll(KVKeys.MESSAGE_PREFIX);
@@ -257,23 +248,29 @@ class MessageService {
     let success = 0;
     let failed = 0;
 
-    for (const key of keys) {
-      const data = await messagesKV.get<Message>(key);
-      if (data) {
+    // 分批并发处理，每批 50 条并发，避免爆内存或超时
+    const batchSize = 50;
+    for (let i = 0; i < keys.length; i += batchSize) {
+      const batchKeys = keys.slice(i, i + batchSize);
+      // 并发获取详情
+      const batchPromises = batchKeys.map(key => messagesKV.get<Message>(key));
+      const messages = await Promise.all(batchPromises);
+
+      for (const data of messages) {
+        if (!data) continue;
+        
         total++;
 
         if (new Date(data.createdAt) >= today) {
           todayCount++;
         }
 
-        // 统计方向
         if (data.direction === 'inbound') {
           inbound++;
         } else {
           outbound++;
         }
 
-        // 统计成功/失败（仅发出的消息）
         if (data.results) {
           for (const r of data.results) {
             if (r.success) {
