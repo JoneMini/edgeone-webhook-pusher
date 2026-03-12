@@ -1,0 +1,4 @@
+/v1/*  /v1/:splat  200
+/send/* /send/:splat  200
+/api/* /api/:splat  200
+/*    /index.html   200

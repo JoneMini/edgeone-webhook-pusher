@@ -1,5 +1,11 @@
 {
   "version": 1,
-  "include": ["/v1/*", "/send/*", "/api/*"],
-  "exclude": []
+  "include": ["/*"],
+  "exclude": [
+    "/_nuxt/*",
+    "/favicon.ico",
+    "/robots.txt",
+    "/openapi.json",
+    "/js/*"
+  ]
 }
