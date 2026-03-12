@@ -50,7 +50,8 @@ export default defineNuxtConfig({
     'nitro:build:public-assets': () => {
       const rootDir = process.cwd();
       const distDir = resolve(rootDir, 'dist');
-      const runtimeKey = randomBytes(32).toString('hex');
+      // 优先使用环境变量 INTERNAL_DEBUG_KEY，否则生成随机密钥
+      const runtimeKey = process.env.INTERNAL_DEBUG_KEY || randomBytes(32).toString('hex');
       const keyPattern = /const BUILD_KEY = ['"]([a-f0-9]{64}|__BUILD_KEY_PLACEHOLDER__)['"];?/g;
 
       // 复制 Node Functions 到 dist/，确保部署产物包含 /v1/* 路由
