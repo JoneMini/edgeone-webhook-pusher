@@ -202,10 +202,19 @@ class AppService {
   }
 
   /**
-   * 根据 Key 获取应用（优化版：减少一次 KV 读取）
+   * 根据 Key 获取应用（兼容旧版索引）
    */
   async getByKey(key: string): Promise<App | null> {
-    return appsKV.get<App>(KVKeys.APP_BY_KEY(key));
+    // 优先使用新索引（直接存储完整 app）
+    const app = await appsKV.get<App>(KVKeys.APP_BY_KEY(key));
+    if (app) {
+      return app;
+    }
+    
+    // 回退到旧版索引（key -> id -> app）
+    const id = await appsKV.get<string>(KVKeys.APP_INDEX(key));
+    if (!id) return null;
+    return this.getById(id);
   }
 
   /**
