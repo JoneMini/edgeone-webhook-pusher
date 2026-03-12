@@ -18,6 +18,20 @@ import { existsSync, readFileSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
+const KV_FETCH_TIMEOUT_MS = 5000;
+
+function fetchWithTimeout(url: string, options?: RequestInit, timeoutMs = KV_FETCH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  return fetch(url, {
+    ...options,
+    signal: controller.signal,
+  }).finally(() => {
+    clearTimeout(timeoutId);
+  });
+}
+
 interface KVRequestContext {
   baseUrl: string;
   // 同一次请求内的 GET 结果复用，减少重复 KV HTTP 请求
@@ -245,7 +259,7 @@ function createKVClient<T = unknown>(namespace: string): KVOperations<T> {
         });
         
         try {
-          const res = await fetch(url, {
+          const res = await fetchWithTimeout(url, {
             headers: getAuthHeaders(),
           });
 
@@ -309,7 +323,7 @@ function createKVClient<T = unknown>(namespace: string): KVOperations<T> {
       const cacheKey = getCacheKey(key);
       const baseUrlWithNamespace = `${baseUrl}/api/kv/${namespace}`;
       const url = `${baseUrlWithNamespace}?action=put`;
-      const res = await fetch(url, {
+      const res = await fetchWithTimeout(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -332,7 +346,7 @@ function createKVClient<T = unknown>(namespace: string): KVOperations<T> {
       const cacheKey = getCacheKey(key);
       const baseUrl = `${getBaseUrl()}/api/kv/${namespace}`;
       const url = `${baseUrl}?action=delete&key=${encodeURIComponent(key)}`;
-      const res = await fetch(url, {
+      const res = await fetchWithTimeout(url, {
         headers: getAuthHeaders(),
       });
       const data = await parseKVResponse(res, url);
@@ -356,7 +370,7 @@ function createKVClient<T = unknown>(namespace: string): KVOperations<T> {
         params.set('cursor', cursor);
       }
       const url = `${baseUrl}?${params}`;
-      const res = await fetch(url, {
+      const res = await fetchWithTimeout(url, {
         headers: getAuthHeaders(),
       });
       const data = await parseKVResponse(res, url);

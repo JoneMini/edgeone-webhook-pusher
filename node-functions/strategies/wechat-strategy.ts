@@ -16,6 +16,19 @@ import { configKV } from '../shared/kv-client.js';
 
 const ACCESS_TOKEN_TTL = 7000;
 const MEMORY_CACHE_CLEANUP_INTERVAL = 60 * 60 * 1000;
+const WECHAT_API_TIMEOUT_MS = 10000;
+
+function fetchWithTimeout(url: string, options?: RequestInit, timeoutMs = WECHAT_API_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  return fetch(url, {
+    ...options,
+    signal: controller.signal,
+  }).finally(() => {
+    clearTimeout(timeoutId);
+  });
+}
 
 interface TokenCache {
   accessToken: string;

@@ -36,6 +36,7 @@ export const KVKeys = {
   APP_PREFIX: 'app:',
   APP: (id: string) => `app:${id}`,
   APP_INDEX: (key: string) => `app_idx:${key}`,
+  APP_BY_KEY: (key: string) => `app_key:${key}`,
   APP_LIST: 'app_list',
   OPENID_PREFIX: 'oid:',
   OPENID: (id: string) => `oid:${id}`,

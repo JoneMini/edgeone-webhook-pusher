@@ -42,8 +42,11 @@ class AppService {
     // 保存应用
     await appsKV.put(KVKeys.APP(id), app);
 
-    // 创建 key 到 id 的索引
+    // 创建 key 到 id 的索引（兼容旧版）
     await appsKV.put(KVKeys.APP_INDEX(key), id);
+
+    // 创建 key 到完整 app 的索引（优化查询性能）
+    await appsKV.put(KVKeys.APP_BY_KEY(key), app);
 
     // 更新应用列表
     const list = (await appsKV.get<string[]>(KVKeys.APP_LIST)) || [];
@@ -199,12 +202,10 @@ class AppService {
   }
 
   /**
-   * 根据 Key 获取应用
+   * 根据 Key 获取应用（优化版：减少一次 KV 读取）
    */
   async getByKey(key: string): Promise<App | null> {
-    const id = await appsKV.get<string>(KVKeys.APP_INDEX(key));
-    if (!id) return null;
-    return this.getById(id);
+    return appsKV.get<App>(KVKeys.APP_BY_KEY(key));
   }
 
   /**
