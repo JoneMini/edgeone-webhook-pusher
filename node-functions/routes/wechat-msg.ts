@@ -4,7 +4,9 @@
  * GET /wechat - 微信服务器验证
  * POST /wechat - 处理微信消息和事件
  * 
- * 无需认证（微信回调）
+ * 安全说明：
+ * - 验证微信签名防止伪造请求
+ * - XML 解析使用安全模式，防止 XXE 攻击
  */
 
 import Router from '@koa/router';
@@ -22,9 +24,29 @@ import { ApiError, ErrorCodes } from '../types/index.js';
 
 const router = new Router();
 
-// 绑定消息正则：绑定 XXXX1234（不区分大小写，允许空格）
-// 排除易混淆字符：O、I（字母）和 0、1（数字）
 const BIND_COMMAND_REGEX = /^绑定\s*([A-HJ-NP-Za-hj-np-z]{4}[2-9]{4})$/;
+
+const MAX_XML_SIZE = 1024 * 100;
+const FORBIDDEN_PATTERNS = [
+  /<!DOCTYPE/i,
+  /<!ENTITY/i,
+  /SYSTEM\s+/i,
+  /PUBLIC\s+/i,
+];
+
+function sanitizeXml(xml: string): string {
+  if (!xml || xml.length > MAX_XML_SIZE) {
+    return '';
+  }
+  
+  for (const pattern of FORBIDDEN_PATTERNS) {
+    if (pattern.test(xml)) {
+      return '';
+    }
+  }
+  
+  return xml;
+}
 
 /**
  * 解析绑定指令
@@ -110,15 +132,19 @@ router.post('/wechat/:channelId', async (ctx: AppContext) => {
  * 处理微信消息和事件
  */
 async function handleWeChatMessage(ctx: AppContext, channelId?: string) {
-  // 获取原始 XML 内容
   let xml: string;
   if (typeof ctx.request.body === 'string') {
-    xml = ctx.request.body;
+    xml = sanitizeXml(ctx.request.body);
   } else if (ctx.request.body && typeof ctx.request.body === 'object') {
-    // 如果 body 已经被解析成对象，尝试从 rawBody 获取
-    xml = (ctx.request as any).rawBody || JSON.stringify(ctx.request.body);
+    xml = sanitizeXml((ctx.request as any).rawBody || JSON.stringify(ctx.request.body));
   } else {
     xml = '';
+  }
+  
+  if (!xml) {
+    ctx.status = 400;
+    ctx.body = 'Invalid request';
+    return;
   }
   
   // 解析 XML

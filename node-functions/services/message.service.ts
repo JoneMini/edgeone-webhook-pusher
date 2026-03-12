@@ -64,64 +64,87 @@ async function batchProcess<T, R>(
 class MessageService {
   /**
    * 保存消息记录
+   * 
+   * @param message - 消息对象
+   * @param options - 选项
+   * @param options.skipIndexes - 跳过索引维护（热路径推荐）
    */
   async saveMessage(
     message: Message,
     options?: {
-      // 轻量模式：仅保存消息详情，不维护 msg_list/msg_channel/msg_app/msg_openid 索引
       skipIndexes?: boolean;
     }
   ): Promise<void> {
     const skipIndexes = options?.skipIndexes === true;
 
-    // 保存消息记录
     await messagesKV.put(KVKeys.MESSAGE(message.id), message);
 
-    // 轻量模式：不维护列表索引，降低热路径 KV 读写次数
     if (skipIndexes) {
       return;
     }
 
-    // 更新全局消息列表
+    await this.updateIndexes(message);
+  }
+
+  /**
+   * 更新消息索引（并行执行）
+   */
+  private async updateIndexes(message: Message): Promise<void> {
+    const indexUpdates: Promise<void>[] = [];
+
+    indexUpdates.push(this.updateGlobalList(message.id));
+
+    if (message.channelId) {
+      indexUpdates.push(this.updateChannelList(message.channelId, message.id));
+    }
+
+    if (message.appId) {
+      indexUpdates.push(this.updateAppList(message.appId, message.id));
+    }
+
+    if (message.openId) {
+      indexUpdates.push(this.updateOpenIdList(message.openId, message.id));
+    }
+
+    await Promise.all(indexUpdates);
+  }
+
+  private async updateGlobalList(messageId: string): Promise<void> {
     const globalList = (await messagesKV.get<string[]>(KVKeys.MESSAGE_LIST)) || [];
-    globalList.unshift(message.id); // 新消息放在前面
-    // 限制列表长度，防止无限增长
+    globalList.unshift(messageId);
     if (globalList.length > 10000) {
       globalList.length = 10000;
     }
     await messagesKV.put(KVKeys.MESSAGE_LIST, globalList);
+  }
 
-    // 更新渠道消息列表
-    if (message.channelId) {
-      const channelKey = `msg_channel:${message.channelId}`;
-      const channelList = (await messagesKV.get<string[]>(channelKey)) || [];
-      channelList.unshift(message.id);
-      if (channelList.length > 5000) {
-        channelList.length = 5000;
-      }
-      await messagesKV.put(channelKey, channelList);
+  private async updateChannelList(channelId: string, messageId: string): Promise<void> {
+    const channelKey = `msg_channel:${channelId}`;
+    const channelList = (await messagesKV.get<string[]>(channelKey)) || [];
+    channelList.unshift(messageId);
+    if (channelList.length > 5000) {
+      channelList.length = 5000;
     }
+    await messagesKV.put(channelKey, channelList);
+  }
 
-    // 更新应用消息列表
-    if (message.appId) {
-      const appList = (await messagesKV.get<string[]>(KVKeys.MESSAGE_APP(message.appId))) || [];
-      appList.unshift(message.id);
-      if (appList.length > 5000) {
-        appList.length = 5000;
-      }
-      await messagesKV.put(KVKeys.MESSAGE_APP(message.appId), appList);
+  private async updateAppList(appId: string, messageId: string): Promise<void> {
+    const appList = (await messagesKV.get<string[]>(KVKeys.MESSAGE_APP(appId))) || [];
+    appList.unshift(messageId);
+    if (appList.length > 5000) {
+      appList.length = 5000;
     }
+    await messagesKV.put(KVKeys.MESSAGE_APP(appId), appList);
+  }
 
-    // 更新用户消息列表
-    if (message.openId) {
-      const openIdKey = `msg_openid:${message.openId}`;
-      const openIdList = (await messagesKV.get<string[]>(openIdKey)) || [];
-      openIdList.unshift(message.id);
-      if (openIdList.length > 1000) {
-        openIdList.length = 1000;
-      }
-      await messagesKV.put(openIdKey, openIdList);
+  private async updateOpenIdList(openId: string, messageId: string): Promise<void> {
+    const openIdKey = `msg_openid:${openId}`;
+    const openIdList = (await messagesKV.get<string[]>(openIdKey)) || [];
+    openIdList.unshift(messageId);
+    if (openIdList.length > 1000) {
+      openIdList.length = 1000;
     }
+    await messagesKV.put(openIdKey, openIdList);
   }
 
   /**

@@ -103,7 +103,7 @@ export abstract class BaseChannelStrategy {
 
   /**
    * 并发控制发送
-   * 限制最大并发数，避免过多并发请求
+   * 使用正确的并发池模式，限制最大并发数
    */
   private async sendWithConcurrency<T>(
     items: string[],
@@ -111,27 +111,19 @@ export abstract class BaseChannelStrategy {
     concurrency: number
   ): Promise<T[]> {
     const results: T[] = [];
-    const executing: Promise<void>[] = [];
+    const executing = new Set<Promise<void>>();
 
     for (const item of items) {
       const promise = processor(item).then((result) => {
         results.push(result);
+      }).finally(() => {
+        executing.delete(promise);
       });
 
-      executing.push(promise);
+      executing.add(promise);
 
-      if (executing.length >= concurrency) {
+      if (executing.size >= concurrency) {
         await Promise.race(executing);
-        const completed = executing.filter((p) => {
-          const settled = Promise.race([p, Promise.resolve('pending')]);
-          return settled !== 'pending';
-        });
-        completed.forEach((p) => {
-          const index = executing.indexOf(p);
-          if (index > -1) {
-            executing.splice(index, 1);
-          }
-        });
       }
     }
 

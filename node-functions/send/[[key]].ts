@@ -7,11 +7,13 @@
  * GET: Query params - title (required), desp (optional)
  * POST: JSON body - { title, desp }
  *
- * 无需认证 - 通过 App Key 验证
+ * 安全说明：
+ * - 通过 App Key 验证身份
+ * - 消息长度限制防止滥用
+ * - 安全头防止常见攻击
  */
 
 import Koa from 'koa';
-// @ts-ignore - koa-bodyparser types are not fully compatible
 import bodyParser from 'koa-bodyparser';
 import { pushService } from '../services/push.service.js';
 import { kvBaseUrlMiddleware } from '../middleware/index.js';
@@ -20,17 +22,19 @@ import type { PushMessageInput } from '../types/index.js';
 
 const app = new Koa();
 
-// 信任代理（EdgeOne 环境必需）
 app.proxy = true;
 
-// KV Base URL 中间件（必须在业务逻辑之前）
+const MAX_TITLE_LENGTH = 1000;
+const MAX_DESP_LENGTH = 10000;
+
 app.use(kvBaseUrlMiddleware);
 
-// CORS 中间件
 app.use(async (ctx, next) => {
   ctx.set('Access-Control-Allow-Origin', '*');
   ctx.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   ctx.set('Access-Control-Allow-Headers', 'Content-Type');
+  ctx.set('X-Content-Type-Options', 'nosniff');
+  ctx.set('X-Frame-Options', 'DENY');
 
   if (ctx.method === 'OPTIONS') {
     ctx.status = 204;
@@ -40,14 +44,14 @@ app.use(async (ctx, next) => {
   await next();
 });
 
-// Body parser
-app.use(bodyParser());
+app.use(bodyParser({
+  jsonLimit: '32kb',
+  formLimit: '32kb',
+}));
 
-// 主处理逻辑
 app.use(async (ctx) => {
   const pathname = ctx.path;
 
-  // 只允许 GET 和 POST
   if (ctx.method !== 'GET' && ctx.method !== 'POST') {
     ctx.status = 405;
     ctx.body = {
@@ -58,7 +62,6 @@ app.use(async (ctx) => {
     return;
   }
 
-  // 从 URL 提取 App Key
   const appKey = extractAppKey(pathname);
   
   if (!appKey) {
@@ -71,10 +74,8 @@ app.use(async (ctx) => {
     return;
   }
 
-  // 解析消息
   const message = parseMessage(ctx);
 
-  // 验证 title
   if (!message.title) {
     ctx.status = 400;
     ctx.body = {
@@ -85,7 +86,26 @@ app.use(async (ctx) => {
     return;
   }
 
-  // 推送消息
+  if (message.title.length > MAX_TITLE_LENGTH) {
+    ctx.status = 400;
+    ctx.body = {
+      code: ErrorCodes.INVALID_PARAM,
+      message: `Title exceeds maximum length of ${MAX_TITLE_LENGTH} characters`,
+      data: null,
+    };
+    return;
+  }
+
+  if (message.desp && message.desp.length > MAX_DESP_LENGTH) {
+    ctx.status = 400;
+    ctx.body = {
+      code: ErrorCodes.INVALID_PARAM,
+      message: `Description exceeds maximum length of ${MAX_DESP_LENGTH} characters`,
+      data: null,
+    };
+    return;
+  }
+
   try {
     const result = await pushService.push(appKey, message);
 
@@ -105,31 +125,23 @@ app.use(async (ctx) => {
     ctx.status = 500;
     ctx.body = {
       code: ErrorCodes.INTERNAL_ERROR,
-      message: error instanceof Error ? error.message : 'Internal error',
+      message: 'Internal error',
       data: null,
     };
   }
 });
 
-/**
- * 从 URL 路径提取 App Key
- * 支持: /APKxxx.send 或 /send/APKxxx 或 /APKxxx (EdgeOne catch-all)
- */
 function extractAppKey(pathname: string): string | null {
-  // Pattern: /:appKey.send
   const dotMatch = pathname.match(/\/([^/]+)\.send$/);
   if (dotMatch) {
     return dotMatch[1];
   }
 
-  // Pattern: /send/:appKey
   const slashMatch = pathname.match(/\/send\/([^/]+)/);
   if (slashMatch) {
     return slashMatch[1];
   }
 
-  // Pattern: /:appKey (EdgeOne catch-all route, path is just the key)
-  // 当 EdgeOne 使用 [[key]].ts 时，ctx.path 可能只是 /APKxxx
   const directMatch = pathname.match(/^\/([A-Za-z0-9_-]+)$/);
   if (directMatch && directMatch[1].startsWith('APK')) {
     return directMatch[1];
@@ -138,25 +150,19 @@ function extractAppKey(pathname: string): string | null {
   return null;
 }
 
-/**
- * 从请求中解析消息
- */
 function parseMessage(ctx: Koa.Context): PushMessageInput {
   if (ctx.method === 'GET') {
-    // GET: 从 query params 获取
     return {
-      title: ctx.query.title as string || '',
-      desp: ctx.query.desp as string | undefined,
+      title: (ctx.query.title as string || '').slice(0, MAX_TITLE_LENGTH),
+      desp: ctx.query.desp ? (ctx.query.desp as string).slice(0, MAX_DESP_LENGTH) : undefined,
     };
   }
 
-  // POST: 从 body 获取
   const body = (ctx.request as { body?: { title?: string; desp?: string } }).body;
   return {
-    title: body?.title || '',
-    desp: body?.desp,
+    title: (body?.title || '').slice(0, MAX_TITLE_LENGTH),
+    desp: body?.desp ? body.desp.slice(0, MAX_DESP_LENGTH) : undefined,
   };
 }
 
-// EdgeOne Node Functions 规范：导出 Koa 应用实例
 export default app;

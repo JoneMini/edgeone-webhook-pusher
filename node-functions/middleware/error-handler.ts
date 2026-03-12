@@ -5,16 +5,12 @@
 import type { Context, Next } from 'koa';
 import { ApiError, ErrorCodes, ErrorMessages, getHttpStatus } from '../types/index.js';
 
-/**
- * 错误处理中间件
- * 捕获所有错误并返回统一格式的错误响应
- */
+const isProduction = process.env.NODE_ENV === 'production';
+
 export async function errorHandler(ctx: Context, next: Next): Promise<void> {
   try {
     await next();
   } catch (err) {
-    console.error('[Error]', err);
-
     if (err instanceof ApiError) {
       ctx.status = err.statusCode;
       ctx.body = {
@@ -25,7 +21,6 @@ export async function errorHandler(ctx: Context, next: Next): Promise<void> {
       return;
     }
 
-    // Koa 内置错误 (ctx.throw)
     if (err && typeof err === 'object' && 'status' in err) {
       const koaError = err as { status: number; message?: string };
       const status = koaError.status || 500;
@@ -43,12 +38,15 @@ export async function errorHandler(ctx: Context, next: Next): Promise<void> {
       return;
     }
 
-    // 未知错误
     ctx.status = 500;
     ctx.body = {
       code: ErrorCodes.INTERNAL_ERROR,
-      message: err instanceof Error ? err.message : 'Internal server error',
+      message: isProduction ? 'Internal server error' : (err instanceof Error ? err.message : 'Internal server error'),
       data: null,
     };
+
+    if (!isProduction) {
+      console.error('[Error]', err);
+    }
   }
 }
