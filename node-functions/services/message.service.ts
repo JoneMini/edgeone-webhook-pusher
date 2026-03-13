@@ -11,6 +11,7 @@
 import { messagesKV } from '../shared/kv-client.js';
 import type { Message, MessageDirection } from '../types/index.js';
 import { KVKeys } from '../types/index.js';
+import { sanitizeInput } from '../shared/utils.js';
 
 interface ListOptions {
   page?: number;
@@ -76,6 +77,14 @@ class MessageService {
     }
   ): Promise<void> {
     const skipIndexes = options?.skipIndexes === true;
+
+    // 安全加固：清理输入内容防止 XSS
+    if (message.title) {
+      message.title = sanitizeInput(message.title);
+    }
+    if (message.desp) {
+      message.desp = sanitizeInput(message.desp);
+    }
 
     await messagesKV.put(KVKeys.MESSAGE(message.id), message);
 

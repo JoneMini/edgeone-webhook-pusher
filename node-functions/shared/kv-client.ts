@@ -384,12 +384,12 @@ function createKVClient<T = unknown>(namespace: string): KVOperations<T> {
       };
     },
 
-    async listAll(prefix = ''): Promise<string[]> {
+    async listAll(prefix = '', maxKeys = 1000): Promise<string[]> {
       const allKeys: string[] = [];
       let cursor: string | undefined;
       let complete = false;
 
-      while (!complete) {
+      while (!complete && allKeys.length < maxKeys) {
         const result = await this.list(prefix, 256, cursor);
         allKeys.push(...result.keys);
         complete = result.complete;

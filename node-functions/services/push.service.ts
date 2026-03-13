@@ -12,12 +12,14 @@ import { demoAppService } from './demo-app.service.js';
 import { openidService } from './openid.service.js';
 import { channelService } from './channel.service.js';
 import { messageService } from './message.service.js';
+import { configService } from './config.service.js';
+import { appsKV } from '../shared/kv-client.js';
 import { generatePushId, now } from '../shared/utils.js';
 import { isWeChatApp, isWorkWeChatApp } from '../shared/type-guards.js';
 import { ChannelStrategyFactory } from '../strategies/channel-strategy-factory.js';
 import type { PushMessage } from '../strategies/types.js';
 import type { PushResult, PushMessageInput, Message, App, DemoApp } from '../types/index.js';
-import { PushModes } from '../types/index.js';
+import { PushModes, ApiError } from '../types/index.js';
 
 class PushService {
   private factory: ChannelStrategyFactory;
@@ -56,6 +58,9 @@ class PushService {
         results: [],
       };
     }
+
+    // 1.5 速率限制校验
+    await this.checkRateLimit(app.id);
 
     // 2. 并行获取渠道配置和推送目标，缩短主链路等待时间
     const [channel, targets] = await Promise.all([
@@ -129,6 +134,26 @@ class PushService {
       ...result,
       pushId,
     };
+  }
+
+  /**
+   * 检查速率限制
+   */
+  private async checkRateLimit(appId: string): Promise<void> {
+    const limit = await configService.getRateLimitPerMinute();
+    if (limit <= 0) return; // 0 表示不限制
+
+    const minute = new Date().toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
+    const key = `ratelimit:${appId}:${minute}`;
+    
+    const current = (await appsKV.get<number>(key)) || 0;
+    if (current >= limit) {
+      throw new ApiError('RATE_LIMIT_EXCEEDED', `Rate limit exceeded: ${limit} messages per minute`, 429);
+    }
+
+    // 递增计数器并设置过期时间（120秒后过期）
+    // 注意：EdgeOne KV put 的第三个参数是 expirationTtl
+    await appsKV.put(key, current + 1, 120);
   }
 
   /**

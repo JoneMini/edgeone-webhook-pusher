@@ -18,6 +18,8 @@ import type { PushMessage, PushResult, SendResult, DeliveryResult, ChannelCapabi
 import { generatePushId } from '../shared/utils.js';
 
 const MAX_CONCURRENT_SENDS = 10;
+const MAX_RETRIES = 2;
+const INITIAL_RETRY_DELAY = 500; // 500ms
 
 export abstract class BaseChannelStrategy {
   protected channel: Channel;
@@ -78,27 +80,45 @@ export abstract class BaseChannelStrategy {
   }
 
   /**
-   * 发送消息到单个目标
+   * 发送消息到单个目标（带指数退避重试）
    */
   private async sendToTarget(
     token: string,
     message: PushMessage,
     target: string
   ): Promise<DeliveryResult> {
-    try {
-      const messageBody = this.buildMessage(message, target);
-      const result = await this.sendRequest(token, messageBody);
-      return {
-        openId: target,
-        ...result,
-      };
-    } catch (error) {
-      return {
-        openId: target,
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
+    let lastError: Error | null = null;
+    
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        if (attempt > 0) {
+          const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt - 1);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+        const messageBody = this.buildMessage(message, target);
+        const result = await this.sendRequest(token, messageBody);
+        
+        // 只有在明确失败且可能是暂时性问题时才重试
+        // 这里暂时对所有抛出的异常进行重试
+        return {
+          openId: target,
+          ...result,
+        };
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        // 如果是参数校验错误等非暂时性错误，直接退出重试
+        if (lastError.message.includes('required') || lastError.message.includes('invalid')) {
+          break;
+        }
+      }
     }
+
+    return {
+      openId: target,
+      success: false,
+      error: lastError?.message || 'Unknown error',
+    };
   }
 
   /**

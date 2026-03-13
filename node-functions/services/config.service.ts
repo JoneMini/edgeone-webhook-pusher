@@ -12,13 +12,26 @@ import { KVKeys, DefaultConfig } from '../types/index.js';
  * 只管理 adminToken、rateLimit 和 retention 设置
  */
 class ConfigService {
+  private cache: SystemConfig | null = null;
+  private cacheTime: number = 0;
+  private readonly CACHE_TTL = 60 * 1000; // 1 minute
+
   /**
    * 获取应用配置（带默认值）
    */
   async getConfig(): Promise<SystemConfig | null> {
+    const now = Date.now();
+    if (this.cache && (now - this.cacheTime < this.CACHE_TTL)) {
+      return this.cache;
+    }
+
     const config = await configKV.get<SystemConfig>(KVKeys.CONFIG);
     if (!config) return null;
-    return this.applyDefaults(config);
+    
+    const finalizedConfig = this.applyDefaults(config);
+    this.cache = finalizedConfig;
+    this.cacheTime = now;
+    return finalizedConfig;
   }
 
   /**
@@ -41,6 +54,8 @@ class ConfigService {
    */
   async saveConfig(config: SystemConfig): Promise<void> {
     await configKV.put(KVKeys.CONFIG, config);
+    this.cache = this.applyDefaults(config);
+    this.cacheTime = Date.now();
   }
 
   /**
@@ -72,6 +87,11 @@ class ConfigService {
     };
 
     await configKV.put(KVKeys.CONFIG, updatedConfig);
+    
+    // 更新缓存
+    this.cache = updatedConfig;
+    this.cacheTime = Date.now();
+    
     return updatedConfig;
   }
 
@@ -79,6 +99,9 @@ class ConfigService {
    * 检查配置是否存在
    */
   async exists(): Promise<boolean> {
+    if (this.cache && (Date.now() - this.cacheTime < this.CACHE_TTL)) {
+      return true;
+    }
     const config = await configKV.get<SystemConfig>(KVKeys.CONFIG);
     return config !== null;
   }

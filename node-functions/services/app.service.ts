@@ -9,6 +9,9 @@ import type { App, CreateAppInput, UpdateAppInput, Channel, OpenID, WeChatAppCon
 import { KVKeys, PushModes, MessageTypes, ApiError, ErrorCodes } from '../types/index.js';
 
 class AppService {
+  private cache: Map<string, { app: App, time: number }> = new Map();
+  private readonly CACHE_TTL = 30 * 1000; // 30 seconds
+
   /**
    * 创建应用
    */
@@ -52,6 +55,10 @@ class AppService {
     const list = (await appsKV.get<string[]>(KVKeys.APP_LIST)) || [];
     list.push(id);
     await appsKV.put(KVKeys.APP_LIST, list);
+
+    // 更新缓存
+    this.cache.set(`id:${id}`, { app, time: Date.now() });
+    this.cache.set(`key:${key}`, { app, time: Date.now() });
 
     return app;
   }
@@ -198,16 +205,33 @@ class AppService {
    * 根据 ID 获取应用
    */
   async getById(id: string): Promise<App | null> {
-    return appsKV.get<App>(KVKeys.APP(id));
+    const cacheKey = `id:${id}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && (Date.now() - cached.time < this.CACHE_TTL)) {
+      return cached.app;
+    }
+
+    const app = await appsKV.get<App>(KVKeys.APP(id));
+    if (app) {
+      this.cache.set(cacheKey, { app, time: Date.now() });
+    }
+    return app;
   }
 
   /**
    * 根据 Key 获取应用（兼容旧版索引）
    */
   async getByKey(key: string): Promise<App | null> {
+    const cacheKey = `key:${key}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && (Date.now() - cached.time < this.CACHE_TTL)) {
+      return cached.app;
+    }
+
     // 优先使用新索引（直接存储完整 app）
     const app = await appsKV.get<App>(KVKeys.APP_BY_KEY(key));
     if (app) {
+      this.cache.set(cacheKey, { app, time: Date.now() });
       return app;
     }
     
@@ -224,7 +248,7 @@ class AppService {
     const ids = (await appsKV.get<string[]>(KVKeys.APP_LIST)) || [];
 
     // 并行获取所有应用，避免 N+1 查询问题
-    const appPromises = ids.map(id => appsKV.get<App>(KVKeys.APP(id)));
+    const appPromises = ids.map(id => this.getById(id));
     const apps = await Promise.all(appPromises);
 
     // 过滤掉 null 值
@@ -264,6 +288,14 @@ class AppService {
     app.updatedAt = now();
 
     await appsKV.put(KVKeys.APP(id), app);
+
+    // 更新 key 索引对应的完整 app
+    await appsKV.put(KVKeys.APP_BY_KEY(app.key), app);
+
+    // 更新缓存
+    this.cache.set(`id:${id}`, { app, time: Date.now() });
+    this.cache.set(`key:${app.key}`, { app, time: Date.now() });
+
     return app;
   }
 
@@ -351,6 +383,7 @@ class AppService {
 
     // 删除 key 索引
     await appsKV.delete(KVKeys.APP_INDEX(app.key));
+    await appsKV.delete(KVKeys.APP_BY_KEY(app.key));
 
     // 删除应用
     await appsKV.delete(KVKeys.APP(id));
@@ -359,6 +392,10 @@ class AppService {
     const list = (await appsKV.get<string[]>(KVKeys.APP_LIST)) || [];
     const newList = list.filter((aid) => aid !== id);
     await appsKV.put(KVKeys.APP_LIST, newList);
+
+    // 清除缓存
+    this.cache.delete(`id:${id}`);
+    this.cache.delete(`key:${app.key}`);
   }
 
   /**

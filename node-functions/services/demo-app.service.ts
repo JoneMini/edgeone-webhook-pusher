@@ -21,9 +21,13 @@ const DEMO_APP_EXPIRY_DAYS = 3;
 
 // KV Key 生成函数
 const DEMO_APP_KEY = (id: string) => `demo_app:${id}`;
+const DEMO_APP_BY_KEY = (key: string) => `demo_app_key:${key}`;
 const DEMO_APP_LIST_KEY = 'demo_app_list';
 
 class DemoAppService {
+  private cache: Map<string, { app: DemoApp, time: number }> = new Map();
+  private readonly CACHE_TTL = 30 * 1000; // 30 seconds for demo apps
+
   /**
    * 创建体验应用
    * 自动注入固定模板ID和第一个可用渠道
@@ -66,6 +70,9 @@ class DemoAppService {
 
     // 保存到 KV (使用 demo_app: 前缀)
     await appsKV.put(DEMO_APP_KEY(id), demoApp);
+    
+    // 创建 key 到完整 app 的索引（优化查询性能）
+    await appsKV.put(DEMO_APP_BY_KEY(key), demoApp);
 
     // 添加到索引列表
     await this.addToList(id);
@@ -88,8 +95,7 @@ class DemoAppService {
     // 批量读取应用数据
     const apps = await Promise.all(
       appIds.map(async (id) => {
-        const app = await appsKV.get<DemoApp>(DEMO_APP_KEY(id));
-        return app;
+        return this.getById(id);
       })
     );
 
@@ -101,15 +107,43 @@ class DemoAppService {
    * 获取体验应用详情
    */
   async getById(id: string): Promise<DemoApp | null> {
-    return await appsKV.get<DemoApp>(DEMO_APP_KEY(id));
+    const cacheKey = `id:${id}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && (Date.now() - cached.time < this.CACHE_TTL)) {
+      return cached.app;
+    }
+
+    const app = await appsKV.get<DemoApp>(DEMO_APP_KEY(id));
+    if (app) {
+      this.cache.set(cacheKey, { app, time: Date.now() });
+    }
+    return app;
   }
 
   /**
    * 根据 Key 获取体验应用
    */
   async getByKey(key: string): Promise<DemoApp | null> {
+    const cacheKey = `key:${key}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && (Date.now() - cached.time < this.CACHE_TTL)) {
+      return cached.app;
+    }
+
+    // 优先使用索引直接获取完整 app
+    const app = await appsKV.get<DemoApp>(DEMO_APP_BY_KEY(key));
+    if (app) {
+      this.cache.set(cacheKey, { app, time: Date.now() });
+      return app;
+    }
+
+    // 回退到遍历（处理旧数据）
     const apps = await this.list();
-    return apps.find(app => app.key === key) || null;
+    const foundApp = apps.find(app => app.key === key) || null;
+    if (foundApp) {
+      this.cache.set(cacheKey, { app: foundApp, time: Date.now() });
+    }
+    return foundApp;
   }
 
   /**
@@ -120,6 +154,9 @@ class DemoAppService {
     if (!app) {
       throw ApiError.notFound('Demo app not found');
     }
+
+    // 删除索引
+    await appsKV.delete(DEMO_APP_BY_KEY(app.key));
 
     // 删除应用数据
     await appsKV.delete(DEMO_APP_KEY(id));
@@ -132,6 +169,10 @@ class DemoAppService {
     for (const key of openIdKeys) {
       await appsKV.delete(key);
     }
+    
+    // 清除缓存
+    this.cache.delete(`id:${id}`);
+    this.cache.delete(`key:${app.key}`);
   }
 
   /**

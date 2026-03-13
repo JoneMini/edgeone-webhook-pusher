@@ -2,7 +2,7 @@
  * FeishuStrategy - 飞书群机器人推送策略
  *
  * 实现飞书群机器人的消息发送逻辑：
- * - 支持 SHA-256 签名验证（注意：不是 HMAC-SHA256）
+ * - 支持 HMAC-SHA256 签名验证
  * - 签名包含在请求体中（不是 URL 参数）
  * - 时间戳使用秒（不是毫秒）
  * - 消息长度限制：30,000 字符
@@ -64,8 +64,7 @@ export class FeishuStrategy extends WebhookStrategy {
     // 如果配置了 secret，添加签名
     if (this.config.secret) {
       const timestamp = Math.floor(Date.now() / 1000).toString();
-      const body = JSON.stringify(feishuMessage);
-      const sign = this.generateSignature(this.config.secret, timestamp, body);
+      const sign = this.generateSignature(this.config.secret, timestamp);
 
       // 添加时间戳和签名到消息体
       feishuMessage.timestamp = timestamp;
@@ -171,28 +170,17 @@ export class FeishuStrategy extends WebhookStrategy {
    * 生成飞书 Webhook 签名
    *
    * 算法：
-   * 1. 构建待签名字符串：timestamp + secret + body（直接拼接，无分隔符）
-   * 2. 使用 SHA-256 计算哈希（注意：不是 HMAC-SHA256）
-   * 3. 转换为小写十六进制字符串
+   * 1. 构建待签名字符串：timestamp + "\n" + secret
+   * 2. 使用 HMAC-SHA256 计算哈希
+   * 3. Base64 编码
    *
-   * 重要：这是 SHA-256，不是 HMAC-SHA256（与钉钉不同）
-   *
-   * @param secret - 飞书机器人加密密钥（32 字符）
-   * @param timestamp - Unix 时间戳（秒，字符串格式）
-   * @param body - JSON 请求体（字符串）
-   * @returns 小写十六进制签名
+   * @param secret - 飞书机器人加密密钥
+   * @param timestamp - Unix 时间戳（秒）
+   * @returns Base64 编码的签名
    */
-  private generateSignature(secret: string, timestamp: string, body: string): string {
-    // 构建待签名字符串：timestamp + secret + body（直接拼接）
-    const stringToSign = `${timestamp}${secret}${body}`;
-
-    // 计算 SHA-256（注意：不是 HMAC-SHA256）
-    const hash = crypto.createHash('sha256');
-    hash.update(stringToSign, 'utf8');
-
-    // 转换为小写十六进制字符串
-    const sign = hash.digest('hex').toLowerCase();
-
-    return sign;
+  private generateSignature(secret: string, timestamp: string): string {
+    const stringToSign = `${timestamp}\n${secret}`;
+    const hmac = crypto.createHmac('sha256', stringToSign);
+    return hmac.digest('base64');
   }
 }
