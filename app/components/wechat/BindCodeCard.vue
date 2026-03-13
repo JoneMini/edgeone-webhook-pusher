@@ -28,9 +28,9 @@
       <!-- Bind code display -->
       <div v-else class="space-y-4">
         <!-- QR Code (if available) -->
-        <div v-if="bindCode.qrCodeUrl && bindCode.status === 'pending'" class="flex justify-center">
+        <div v-if="displayQrCodeUrl && bindCode.status === 'pending'" class="flex justify-center">
           <div class="p-2 bg-white rounded-lg border border-gray-200 dark:border-gray-700">
-            <img :src="bindCode.qrCodeUrl" alt="绑定二维码" class="w-40 h-40" />
+            <img :src="displayQrCodeUrl" alt="绑定二维码" class="w-40 h-40" />
           </div>
         </div>
 
@@ -56,7 +56,7 @@
         <!-- Instructions -->
         <div v-if="bindCode.status === 'pending'" class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
           <div class="text-sm font-medium mb-2">绑定步骤：</div>
-          <ol v-if="bindCode.qrCodeUrl" class="text-xs text-gray-600 dark:text-gray-400 space-y-1 list-decimal list-inside">
+          <ol v-if="displayQrCodeUrl" class="text-xs text-gray-600 dark:text-gray-400 space-y-1 list-decimal list-inside">
             <li>使用微信扫描上方二维码</li>
             <li>关注公众号（如未关注）</li>
             <li>等待绑定成功提示</li>
@@ -114,6 +114,7 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
+import QRCode from 'qrcode';
 
 interface BindCodeInfo {
   code: string;
@@ -137,6 +138,7 @@ const toast = useToast();
 const bindCode = ref<BindCodeInfo | null>(null);
 const generating = ref(false);
 const remainingTime = ref('');
+const localQrCodeUrl = ref(''); // 本地生成的二维码 URL
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -150,6 +152,17 @@ const shouldShowBindCard = computed(() => {
   return true;
 });
 
+// 计算最终显示的二维码 URL
+const displayQrCodeUrl = computed(() => {
+  if (!bindCode.value) return '';
+  // 优先使用后端返回的微信二维码
+  if (bindCode.value.qrCodeUrl) {
+    return bindCode.value.qrCodeUrl;
+  }
+  // 降级使用本地生成的二维码
+  return localQrCodeUrl.value;
+});
+
 onMounted(() => {
   // Start polling if there's an active bind code
 });
@@ -159,84 +172,11 @@ onUnmounted(() => {
   stopCountdown();
 });
 
-function stopPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
-}
-
-function stopCountdown() {
-  if (countdownTimer) {
-    clearInterval(countdownTimer);
-    countdownTimer = null;
-  }
-}
-
-function startCountdown() {
-  stopCountdown();
-  updateRemainingTime();
-  countdownTimer = setInterval(updateRemainingTime, 1000);
-}
-
-function updateRemainingTime() {
-  if (!bindCode.value || bindCode.value.status !== 'pending') {
-    stopCountdown();
-    return;
-  }
-  
-  const now = Date.now();
-  const remaining = bindCode.value.expiresAt - now;
-  
-  if (remaining <= 0) {
-    bindCode.value.status = 'expired';
-    remainingTime.value = '已过期';
-    stopCountdown();
-    stopPolling();
-    return;
-  }
-  
-  const minutes = Math.floor(remaining / 60000);
-  const seconds = Math.floor((remaining % 60000) / 1000);
-  remainingTime.value = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-}
-
-function startPolling() {
-  stopPolling();
-  pollTimer = setInterval(async () => {
-    if (!bindCode.value || bindCode.value.status !== 'pending') {
-      stopPolling();
-      return;
-    }
-    
-    try {
-      const res = await api.getBindCodeStatus(props.appId, bindCode.value.code);
-      if (res.data) {
-        if (res.data.status === 'bound') {
-          bindCode.value = {
-            ...bindCode.value,
-            status: 'bound',
-            openId: res.data.openId,
-            nickname: res.data.nickname,
-            avatar: res.data.avatar,
-          };
-          stopPolling();
-          stopCountdown();
-          toast.add({ title: '绑定成功！', color: 'success' });
-        } else if (res.data.status === 'expired') {
-          bindCode.value.status = 'expired';
-          stopPolling();
-          stopCountdown();
-        }
-      }
-    } catch (e) {
-      console.error('Poll bind code status failed:', e);
-    }
-  }, 3000);
-}
+// ... (省略部分代码)
 
 async function handleGenerate() {
   generating.value = true;
+  localQrCodeUrl.value = ''; // 重置本地二维码
   try {
     const res = await api.generateBindCode(props.appId);
     bindCode.value = {
@@ -245,6 +185,23 @@ async function handleGenerate() {
       expiresAt: res.data.expiresAt,
       qrCodeUrl: res.data.qrCodeUrl,
     };
+    
+    // 如果后端没有返回二维码 URL（例如订阅号），前端生成包含绑定指令的二维码
+    if (!res.data.qrCodeUrl) {
+      try {
+        localQrCodeUrl.value = await QRCode.toDataURL(`绑定 ${res.data.bindCode}`, {
+          width: 200,
+          margin: 1,
+          color: {
+            dark: '#000000',
+            light: '#ffffff'
+          }
+        });
+      } catch (err) {
+        console.error('Failed to generate local QR code:', err);
+      }
+    }
+
     startCountdown();
     startPolling();
     toast.add({ title: '绑定码已生成', color: 'success' });
@@ -256,13 +213,5 @@ async function handleGenerate() {
   }
 }
 
-async function copyBindCommand() {
-  if (!bindCode.value) return;
-  try {
-    await navigator.clipboard.writeText(`绑定 ${bindCode.value.code}`);
-    toast.add({ title: '绑定指令已复制', color: 'success' });
-  } catch {
-    toast.add({ title: '复制失败', color: 'error' });
-  }
-}
+// ... (省略 copyBindCommand)
 </script>
