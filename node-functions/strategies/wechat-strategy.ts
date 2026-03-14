@@ -144,10 +144,20 @@ export class WeChatStrategy extends BaseChannelStrategy {
         },
       };
     } else {
-      // 客服消息
+      // 客服消息 - 在客服消息中也添加时间戳
+      const timestamp = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      });
+      
       const content = message.desp
-        ? `${message.title}\n\n${message.desp}`
-        : message.title;
+        ? `${message.title}\n\n${message.desp}\n\n⏰ ${timestamp}`
+        : `${message.title}\n\n⏰ ${timestamp}`;
       return {
         touser: openId,
         msgtype: 'text',
