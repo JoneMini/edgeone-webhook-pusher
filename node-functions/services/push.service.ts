@@ -103,17 +103,12 @@ class PushService {
       hour12: false,
     });
 
-    // 构建模板数据
+    // 构建模板数据 - 根据您的模板结构：标题{{first.DATA}}、内容{{keyword1.DATA}}、备注{{remark.DATA}}
     const templateData: any = {
       first: { value: message.title || '' },
       keyword1: { value: message.desp || '' },
-      remark: { value: `时间：${timestamp}` },
+      remark: { value: `⏰ ${timestamp}` },
     };
-
-    // 如果配置了时间字段，添加时间戳到指定字段
-    if (isWeChatApp(app) && app.timeField) {
-      templateData[app.timeField] = { value: timestamp };
-    }
 
     const strategyMessage: PushMessage = {
       title: message.title,
