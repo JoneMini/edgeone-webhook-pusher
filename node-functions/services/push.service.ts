@@ -93,6 +93,16 @@ class PushService {
     const strategy = this.factory.createStrategy(channel);
 
     // 5. 构建策略消息格式
+    const timestamp = new Date().toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+
     const strategyMessage: PushMessage = {
       title: message.title,
       desp: message.desp,
@@ -102,6 +112,7 @@ class PushService {
         templateData: {
           first: { value: message.title || '' },
           keyword1: { value: message.desp || '' },
+          keyword2: { value: timestamp },
           remark: { value: '' },
         },
       }),
