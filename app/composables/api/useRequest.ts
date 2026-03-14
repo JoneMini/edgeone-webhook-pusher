@@ -48,6 +48,16 @@ export function useRequest() {
       }
 
       const data = await res.json();
+      
+      // 检查业务错误码
+      if (data.code !== 0) {
+        return { 
+          code: data.code, 
+          message: data.message || '请求失败', 
+          data: null as T 
+        };
+      }
+      
       return data as ApiResponse<T>;
     } catch (error) {
       return {

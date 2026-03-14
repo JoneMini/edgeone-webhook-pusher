@@ -51,8 +51,12 @@ export function useChannelApi() {
   /**
    * 删除渠道
    */
-  function deleteChannel(id: string): Promise<ApiResponse<void>> {
-    return del<void>(`/channels/${id}`);
+  async function deleteChannel(id: string): Promise<ApiResponse<void>> {
+    const res = await del<void>(`/channels/${id}`);
+    if (res.code !== 0) {
+      throw new Error(res.message || '删除失败');
+    }
+    return res;
   }
 
   /**
