@@ -22,6 +22,7 @@ export interface WeChatAppConfig extends BaseApp {
   pushMode: PushMode;
   messageType: MessageType;
   templateId?: string;
+  timeField?: string; // 时间字段名，如 'keyword2'、'time' 等
 }
 
 // 企业微信应用配置

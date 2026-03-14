@@ -103,18 +103,25 @@ class PushService {
       hour12: false,
     });
 
+    // 构建模板数据
+    const templateData: any = {
+      first: { value: message.title || '' },
+      keyword1: { value: message.desp || '' },
+      remark: { value: `时间：${timestamp}` },
+    };
+
+    // 如果配置了时间字段，添加时间戳到指定字段
+    if (isWeChatApp(app) && app.timeField) {
+      templateData[app.timeField] = { value: timestamp };
+    }
+
     const strategyMessage: PushMessage = {
       title: message.title,
       desp: message.desp,
       // 如果是微信应用且有模板配置，传递模板信息
       ...(isWeChatApp(app) && app.templateId && {
         templateId: app.templateId,
-        templateData: {
-          first: { value: message.title || '' },
-          keyword1: { value: message.desp || '' },
-          keyword2: { value: timestamp },
-          remark: { value: '' },
-        },
+        templateData,
       }),
     };
 
