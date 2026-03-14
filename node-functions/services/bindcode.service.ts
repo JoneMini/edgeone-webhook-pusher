@@ -88,10 +88,13 @@ class BindCodeService {
         if (qrResult) {
           bindCode.qrCodeTicket = qrResult.ticket;
           bindCode.qrCodeUrl = wechatService.getQRCodeImageUrl(qrResult.ticket);
+        } else {
+          // 降级方案：生成一个包含绑定指令的通用二维码（适用于订阅号或未认证服务号）
+          bindCode.qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent('绑定 ' + code)}`;
         }
       } catch (error) {
-        // 创建二维码失败不影响绑定码生成（可能是订阅号或未认证服务号）
-        // 静默失败，前端将根据 bindCode 生成本地二维码
+        // 创建二维码失败不影响绑定码生成，使用降级二维码
+        bindCode.qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent('绑定 ' + code)}`;
       }
     }
     
