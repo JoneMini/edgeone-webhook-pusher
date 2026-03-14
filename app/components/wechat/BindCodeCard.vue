@@ -172,7 +172,81 @@ onUnmounted(() => {
   stopCountdown();
 });
 
-// ... (省略部分代码)
+function stopCountdown() {
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
+}
+
+function startCountdown() {
+  stopCountdown();
+  updateRemainingTime();
+  countdownTimer = setInterval(updateRemainingTime, 1000);
+}
+
+function updateRemainingTime() {
+  if (!bindCode.value || bindCode.value.status !== 'pending') {
+    stopCountdown();
+    return;
+  }
+  
+  const now = Date.now();
+  const remaining = bindCode.value.expiresAt - now;
+  
+  if (remaining <= 0) {
+    bindCode.value.status = 'expired';
+    remainingTime.value = '已过期';
+    stopCountdown();
+    stopPolling();
+    return;
+  }
+  
+  const minutes = Math.floor(remaining / 60000);
+  const seconds = Math.floor((remaining % 60000) / 1000);
+  remainingTime.value = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+function startPolling() {
+  stopPolling();
+  pollTimer = setInterval(async () => {
+    if (!bindCode.value || bindCode.value.status !== 'pending') {
+      stopPolling();
+      return;
+    }
+    
+    try {
+      const res = await api.getBindCodeStatus(props.appId, bindCode.value.code);
+      if (res.data) {
+        if (res.data.status === 'bound') {
+          bindCode.value = {
+            ...bindCode.value,
+            status: 'bound',
+            openId: res.data.openId,
+            nickname: res.data.nickname,
+            avatar: res.data.avatar,
+          };
+          stopPolling();
+          stopCountdown();
+          toast.add({ title: '绑定成功！', color: 'success' });
+        } else if (res.data.status === 'expired') {
+          bindCode.value.status = 'expired';
+          stopPolling();
+          stopCountdown();
+        }
+      }
+    } catch (e) {
+      console.error('Poll bind code status failed:', e);
+    }
+  }, 3000);
+}
 
 async function handleGenerate() {
   generating.value = true;
@@ -213,5 +287,13 @@ async function handleGenerate() {
   }
 }
 
-// ... (省略 copyBindCommand)
+async function copyBindCommand() {
+  if (!bindCode.value) return;
+  try {
+    await navigator.clipboard.writeText(`绑定 ${bindCode.value.code}`);
+    toast.add({ title: '绑定指令已复制', color: 'success' });
+  } catch {
+    toast.add({ title: '复制失败', color: 'error' });
+  }
+}
 </script>
