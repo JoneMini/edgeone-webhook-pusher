@@ -151,17 +151,31 @@ function extractAppKey(pathname: string): string | null {
 }
 
 function parseMessage(ctx: Koa.Context): PushMessageInput {
+  const timestamp = new Date().toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+
   if (ctx.method === 'GET') {
+    const desp = ctx.query.desp ? (ctx.query.desp as string) : '';
+    const despWithTime = desp ? `${desp}\n\n⏰ ${timestamp}` : `⏰ ${timestamp}`;
     return {
       title: (ctx.query.title as string || '').slice(0, MAX_TITLE_LENGTH),
-      desp: ctx.query.desp ? (ctx.query.desp as string).slice(0, MAX_DESP_LENGTH) : undefined,
+      desp: despWithTime.slice(0, MAX_DESP_LENGTH),
     };
   }
 
   const body = (ctx.request as { body?: { title?: string; desp?: string } }).body;
+  const desp = body?.desp || '';
+  const despWithTime = desp ? `${desp}\n\n⏰ ${timestamp}` : `⏰ ${timestamp}`;
   return {
     title: (body?.title || '').slice(0, MAX_TITLE_LENGTH),
-    desp: body?.desp ? body.desp.slice(0, MAX_DESP_LENGTH) : undefined,
+    desp: despWithTime.slice(0, MAX_DESP_LENGTH),
   };
 }
 
